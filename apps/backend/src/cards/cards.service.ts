@@ -1,10 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, Repository } from "typeorm";
+import { DataSource, IsNull, Repository } from "typeorm";
 import { Card } from "../entities/card.entity";
 import { CardCell } from "../entities/card-cell.entity";
 import { CardInvite } from "../entities/card-invite.entity";
@@ -31,25 +32,50 @@ export class CardsService {
     await queryRunner.startTransaction();
 
     try {
-      // 1. Find and validate invite
+      // 1. Atomically claim the invite using conditional update
+      // This prevents race conditions by ensuring only one request can claim the invite
+      const updateResult = await queryRunner.manager.update(
+        CardInvite,
+        {
+          token,
+          usedAt: IsNull(), // Only update if not already used
+        },
+        {
+          usedAt: new Date(),
+        },
+      );
+
+      if (updateResult.affected === 0) {
+        // Either invite doesn't exist or was already used
+        const existingInvite = await queryRunner.manager.findOne(CardInvite, {
+          where: { token },
+        });
+
+        if (!existingInvite) {
+          throw new NotFoundException(`Invite with token ${token} not found`);
+        }
+
+        throw new ConflictException("Invite has already been used");
+      }
+
+      // 2. Load the claimed invite with relations
       const invite = await queryRunner.manager.findOne(CardInvite, {
         where: { token },
         relations: ["game"],
       });
 
       if (!invite) {
-        throw new NotFoundException(`Invite with token ${token} not found`);
-      }
-
-      if (invite.usedAt !== null) {
-        throw new BadRequestException("Invite has already been used");
+        throw new Error(
+          "Invite not found after update - this should not happen",
+        );
       }
 
       if (new Date() > invite.expiresAt) {
+        // Rollback the usedAt update since invite is expired
         throw new BadRequestException("Invite has expired");
       }
 
-      // 2. Find or create User
+      // 3. Find or create User
       let user = await queryRunner.manager.findOne(User, {
         where: { displayName: dto.displayName },
       });
@@ -61,7 +87,7 @@ export class CardsService {
         user = await queryRunner.manager.save(User, user);
       }
 
-      // 3. Check if user already has a card for this game
+      // 4. Check if user already has a card for this game
       const existingCard = await queryRunner.manager.findOne(Card, {
         where: {
           gameId: invite.gameId,
@@ -73,7 +99,7 @@ export class CardsService {
         throw new BadRequestException("User already has a card for this game");
       }
 
-      // 4. Create GameParticipant (if not exists)
+      // 5. Create GameParticipant (if not exists)
       let participant = await queryRunner.manager.findOne(GameParticipant, {
         where: {
           gameId: invite.gameId,
@@ -92,20 +118,19 @@ export class CardsService {
         );
       }
 
-      // 5. Create Card
+      // 6. Create Card
       const card = queryRunner.manager.create(Card, {
         gameId: invite.gameId,
         userId: user.id,
       });
       const savedCard = await queryRunner.manager.save(Card, card);
 
-      // 6. Generate 25 CardCells (5x5 bingo grid)
+      // 7. Generate 25 CardCells (5x5 bingo grid)
       const cells = this.generateBingoGrid(savedCard.id);
       const _savedCells = await queryRunner.manager.save(CardCell, cells);
 
-      // 7. Mark invite as used
+      // 8. Link invite to the created card
       invite.cardId = savedCard.id;
-      invite.usedAt = new Date();
       await queryRunner.manager.save(CardInvite, invite);
 
       await queryRunner.commitTransaction();

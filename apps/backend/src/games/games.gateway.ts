@@ -1,4 +1,5 @@
-import { Logger } from "@nestjs/common";
+import { Logger, UsePipes, ValidationPipe } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
 import {
   ConnectedSocket,
   MessageBody,
@@ -8,8 +9,12 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  WsException,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
+import { Repository } from "typeorm";
+import { GameParticipant } from "../entities/game-participant.entity";
+import { JoinGameDto } from "./dto/join-game.dto";
 
 @WebSocketGateway({
   cors: {
@@ -17,6 +22,7 @@ import { Server, Socket } from "socket.io";
     credentials: true,
   },
 })
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class GamesGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
@@ -24,6 +30,11 @@ export class GamesGateway
   server!: Server;
 
   private readonly logger = new Logger(GamesGateway.name);
+
+  constructor(
+    @InjectRepository(GameParticipant)
+    private readonly participantRepo: Repository<GameParticipant>,
+  ) {}
 
   afterInit(_server: Server) {
     this.logger.log("WebSocket Gateway initialized");
@@ -38,15 +49,36 @@ export class GamesGateway
   }
 
   /**
-   * Client joins a game room to receive real-time updates
+   * Client joins a game room to receive real-time updates.
+   * Validates that the user is a participant in the game before allowing join.
    */
   @SubscribeMessage("game:join")
-  handleJoinGame(
-    @MessageBody() data: { gameId: number; userId: number },
+  async handleJoinGame(
+    @MessageBody() data: JoinGameDto,
     @ConnectedSocket() client: Socket,
   ) {
+    // Verify user is a participant in the game
+    const participant = await this.participantRepo.findOne({
+      where: {
+        gameId: data.gameId,
+        userId: data.userId,
+      },
+    });
+
+    if (!participant) {
+      this.logger.warn(
+        `Client ${client.id} attempted to join game ${data.gameId} as user ${data.userId} but is not a participant`,
+      );
+      throw new WsException("User is not a participant in this game");
+    }
+
     const roomName = `game:${data.gameId}`;
     client.join(roomName);
+
+    // Store user info on the socket for later use
+    client.data.userId = data.userId;
+    client.data.gameId = data.gameId;
+
     this.logger.log(
       `Client ${client.id} joined game ${data.gameId} (user ${data.userId})`,
     );
@@ -68,6 +100,11 @@ export class GamesGateway
   ) {
     const roomName = `game:${data.gameId}`;
     client.leave(roomName);
+
+    // Clear socket data
+    client.data.userId = undefined;
+    client.data.gameId = undefined;
+
     this.logger.log(`Client ${client.id} left game ${data.gameId}`);
   }
 

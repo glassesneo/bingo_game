@@ -4,11 +4,13 @@ import {
   Entity,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
 } from "typeorm";
 import { Card } from "./card.entity";
 import { GameParticipant } from "./game-participant.entity";
 
 @Entity({ name: "users" })
+@Unique("uq_users_display_name", ["displayName"])
 export class User {
   @PrimaryGeneratedColumn()
   id!: number;

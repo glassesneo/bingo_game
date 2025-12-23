@@ -13,6 +13,7 @@ import { Game } from "./game.entity";
 
 @Entity({ name: "card_invites" })
 @Unique("uq_card_invites_token", ["token"])
+@Unique("uq_card_invites_card_id", ["cardId"])
 export class CardInvite {
   @PrimaryGeneratedColumn()
   id!: number;
