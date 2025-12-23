@@ -21,13 +21,14 @@ import {
 import { Server, Socket } from "socket.io";
 import { Repository } from "typeorm";
 import { JwtPayload } from "../auth/jwt-payload.interface";
+import { Game } from "../entities/game.entity";
 import { GameParticipant } from "../entities/game-participant.entity";
 import { JoinGameDto } from "./dto/join-game.dto";
 import { GamesService } from "./games.service";
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL ?? "http://localhost:5173",
+    origin: (process.env.FRONTEND_URL ?? "http://localhost:5173").split(","),
     credentials: true,
   },
 })
@@ -43,6 +44,8 @@ export class GamesGateway
   constructor(
     @InjectRepository(GameParticipant)
     private readonly participantRepo: Repository<GameParticipant>,
+    @InjectRepository(Game)
+    private readonly gameRepo: Repository<Game>,
     private readonly jwtService: JwtService,
     @Inject(forwardRef(() => GamesService))
     private readonly gamesService: GamesService,
@@ -149,6 +152,76 @@ export class GamesGateway
     } catch (error) {
       this.logger.error(
         `Failed to send game:state to client ${client.id}:`,
+        error,
+      );
+    }
+  }
+
+  /**
+   * Host joins a game room to receive real-time updates.
+   * Validates hostToken against the game before allowing join.
+   */
+  @SubscribeMessage("game:join-host")
+  async handleJoinGameAsHost(
+    @MessageBody() data: { gameId: number; hostToken: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    // Validate hostToken matches the game
+    const game = await this.gameRepo.findOne({
+      where: {
+        id: data.gameId,
+        hostToken: data.hostToken,
+      },
+    });
+
+    if (!game) {
+      this.logger.warn(
+        `Client ${client.id} attempted to join game ${data.gameId} as host with invalid token`,
+      );
+      throw new WsException("Invalid host token for this game");
+    }
+
+    const roomName = `game:${data.gameId}`;
+    client.join(roomName);
+
+    // Store host info on the socket
+    client.data.gameId = data.gameId;
+    client.data.isHost = true;
+
+    this.logger.log(`Host ${client.id} joined game ${data.gameId}`);
+
+    // Acknowledge join
+    client.emit("game:joined", {
+      gameId: data.gameId,
+      isHost: true,
+    });
+
+    // Send current game state for synchronization
+    try {
+      const state = await this.gamesService.getGameState(data.gameId);
+      client.emit("game:state", {
+        game: {
+          id: state.game.id,
+          serverId: state.game.serverId,
+          status: state.game.status,
+          startedAt: state.game.startedAt?.toISOString() ?? null,
+          endedAt: state.game.endedAt?.toISOString() ?? null,
+        },
+        participantCount: state.participantCount,
+        drawnNumbers: state.drawnNumbers.map((d) => ({
+          number: d.number,
+          drawOrder: d.drawOrder,
+          drawnAt: d.drawnAt.toISOString(),
+        })),
+        winners: state.winners.map((w) => ({
+          userId: w.userId,
+          displayName: w.displayName,
+          claimedAt: w.claimedAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send game:state to host ${client.id}:`,
         error,
       );
     }

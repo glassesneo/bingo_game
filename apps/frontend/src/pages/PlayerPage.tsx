@@ -52,6 +52,12 @@ export function PlayerPage() {
     return winners.some((w) => w.userId === session.userId);
   }, [winners, session]);
 
+  // Handle leaving the game (clear session and go home)
+  const handleLeaveGame = useCallback(() => {
+    clearSession();
+    navigate("/", { replace: true });
+  }, [clearSession, navigate]);
+
   // Handle claiming bingo
   const handleClaimBingo = useCallback(async () => {
     if (!gameId || isClaiming || hasClaimedWin) return;
@@ -89,10 +95,23 @@ export function PlayerPage() {
 
     const initialize = async () => {
       try {
-        // Fetch card
+        // Fetch card - this will fail if game is ended or session is invalid
         const card = await api.getMyCard();
         if (mounted) {
           setCard(card);
+        }
+
+        // Fetch game state to check if game is already ended
+        const gameState = await api.getGame(gameId);
+        if (mounted) {
+          if (gameState.game.status === "ended") {
+            // Game already ended, show ended state
+            setGameStatus("ended");
+            setDrawnNumbers(gameState.drawnNumbers);
+            setWinners(gameState.winners);
+            setIsLoading(false);
+            return; // Don't connect to WebSocket for ended games
+          }
         }
 
         // Connect to WebSocket
@@ -219,6 +238,22 @@ export function PlayerPage() {
             <div className="badge badge-neutral badge-lg">Game ended</div>
           )}
         </div>
+
+        {/* Leave Game Button - shown when game ended OR player won */}
+        {(gameStatus === "ended" || isWinner) && (
+          <div className="flex flex-col items-center gap-4">
+            {gameStatus === "ended" && (
+              <p className="text-base-content/60">Thanks for playing!</p>
+            )}
+            <button
+              onClick={handleLeaveGame}
+              className="btn btn-primary"
+              type="button"
+            >
+              Leave Game
+            </button>
+          </div>
+        )}
 
         {/* Current Number Display */}
         {latestDraw && gameStatus === "running" && (

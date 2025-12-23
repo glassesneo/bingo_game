@@ -46,6 +46,10 @@ class SocketService {
     this.socket?.emit("game:join", { gameId, playerToken });
   }
 
+  joinGameAsHost(gameId: number, hostToken: string): void {
+    this.socket?.emit("game:join-host", { gameId, hostToken });
+  }
+
   leaveGame(gameId: number): void {
     this.socket?.emit("game:leave", { gameId });
   }
@@ -75,6 +79,12 @@ class SocketService {
     this.socket?.on("game:ended", callback);
   }
 
+  onPlayerJoined(
+    callback: (data: { displayName: string; participantCount: number }) => void,
+  ): void {
+    this.socket?.on("player:joined", callback);
+  }
+
   // Remove specific listeners
   offGameJoined(): void {
     this.socket?.off("game:joined");
@@ -98,6 +108,10 @@ class SocketService {
 
   offGameEnded(): void {
     this.socket?.off("game:ended");
+  }
+
+  offPlayerJoined(): void {
+    this.socket?.off("player:joined");
   }
 
   // Cleanup

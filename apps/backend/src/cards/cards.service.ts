@@ -13,6 +13,7 @@ import { CardCell } from "../entities/card-cell.entity";
 import { CardInvite } from "../entities/card-invite.entity";
 import { GameParticipant } from "../entities/game-participant.entity";
 import { User } from "../entities/user.entity";
+import { GamesGateway } from "../games/games.gateway";
 import { ClaimInviteDto } from "./dto/claim-invite.dto";
 
 export interface ClaimInviteResult {
@@ -34,6 +35,7 @@ export class CardsService {
     private readonly cardRepo: Repository<Card>,
     private readonly dataSource: DataSource,
     private readonly jwtService: JwtService,
+    private readonly gamesGateway: GamesGateway,
   ) {}
 
   /**
@@ -176,6 +178,21 @@ export class CardsService {
       }
 
       await queryRunner.commitTransaction();
+
+      // Broadcast player joined event for new players (not re-login)
+      if (!existingParticipant) {
+        // Get updated participant count
+        const participantCount = await this.cardRepo.manager.count(
+          GameParticipant,
+          {
+            where: { gameId: invite.gameId },
+          },
+        );
+        this.gamesGateway.broadcastToGame(invite.gameId, "player:joined", {
+          displayName: dto.displayName,
+          participantCount,
+        });
+      }
 
       // 7. Generate JWT token
       const payload: JwtPayload = {

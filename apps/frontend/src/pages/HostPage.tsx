@@ -34,10 +34,9 @@ export function HostPage() {
   const [isEnding, setIsEnding] = useState(false);
   const [newWinner, setNewWinner] = useState<Winner | null>(null);
 
-  // Generate join URL
-  const joinUrl = inviteToken
-    ? `${window.location.origin}/join/${inviteToken}`
-    : null;
+  // Generate join URL - use PUBLIC_URL for QR code (for LAN access)
+  const publicUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
+  const joinUrl = inviteToken ? `${publicUrl}/join/${inviteToken}` : null;
 
   // Start game
   const handleStartGame = useCallback(async () => {
@@ -101,6 +100,9 @@ export function HostPage() {
     }
 
     let mounted = true;
+    let joinedGameId: number | null = null;
+    let socket: ReturnType<typeof socketService.connect> | null = null;
+    let joinHostRoom: (() => void) | null = null;
 
     const initialize = async () => {
       try {
@@ -117,7 +119,24 @@ export function HostPage() {
         }
 
         // Connect to WebSocket for live updates
-        socketService.connect();
+        socket = socketService.connect();
+
+        // Function to join host room - called on connect and reconnect
+        joinHostRoom = () => {
+          if (hostView.gameId && hostToken) {
+            joinedGameId = hostView.gameId;
+            socketService.joinGameAsHost(hostView.gameId, hostToken);
+          }
+        };
+
+        // Join room on initial connect and reconnects
+        socket.on("connect", joinHostRoom);
+        socket.io.on("reconnect", joinHostRoom);
+
+        // Join immediately if already connected
+        if (socket.connected) {
+          joinHostRoom();
+        }
 
         socketService.onGameState((data: GameState) => {
           if (mounted) {
@@ -143,14 +162,11 @@ export function HostPage() {
           }
         });
 
-        // Join room as observer (without playerToken)
-        // Note: Host uses hostToken for API calls, but joins WS room for live updates
-        // We need the gameId from hostView
-        if (hostView.gameId) {
-          // Host can join room without player token for observation
-          // The gateway should allow this for hosts (future enhancement)
-          // For now, host relies on polling/API responses
-        }
+        socketService.onPlayerJoined((data) => {
+          if (mounted) {
+            setParticipantCount(data.participantCount);
+          }
+        });
       } catch (err) {
         if (mounted) {
           setError(
@@ -165,9 +181,19 @@ export function HostPage() {
 
     return () => {
       mounted = false;
+      // Clean up socket connect/reconnect listeners
+      if (socket && joinHostRoom) {
+        socket.off("connect", joinHostRoom);
+        socket.io.off("reconnect", joinHostRoom);
+      }
       socketService.offGameState();
       socketService.offBingoClaimed();
       socketService.offGameEnded();
+      socketService.offPlayerJoined();
+      // Leave the game room when unmounting
+      if (joinedGameId) {
+        socketService.leaveGame(joinedGameId);
+      }
     };
   }, [hostToken, navigate]);
 
