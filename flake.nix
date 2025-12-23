@@ -22,7 +22,7 @@
             turbo
             biome
             postgresql
-          sqlite
+            sqlite
           ];
         }
     );

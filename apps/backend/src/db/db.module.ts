@@ -11,31 +11,31 @@ import { Server } from "../entities/server.entity";
 import { User } from "../entities/user.entity";
 
 @Module({
-	imports: [
-		ConfigModule.forRoot({ isGlobal: true, envFilePath: [".env"] }),
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: [".env"] }),
 
-		TypeOrmModule.forRootAsync({
-			inject: [ConfigService],
-			useFactory: (config: ConfigService) => ({
-				type: "sqlite",
-				database: config.get<string>("DATABASE_PATH") ?? "dev.db",
-				autoLoadEntities: true,
-				synchronize: false,
-				logging: config.get<string>("DB_LOGGING") === "true",
-			}),
-		}),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        type: "better-sqlite3",
+        database: config.get<string>("DATABASE_PATH") ?? "dev.db",
+        autoLoadEntities: true,
+        synchronize: false,
+        logging: config.get<string>("DB_LOGGING") === "true",
+      }),
+    }),
 
-		TypeOrmModule.forFeature([
-			Server,
-			Game,
-			User,
-			GameParticipant,
-			GameDraw,
-			Card,
-			CardCell,
-			CardInvite,
-		]),
-	],
-	exports: [TypeOrmModule],
+    TypeOrmModule.forFeature([
+      Server,
+      Game,
+      User,
+      GameParticipant,
+      GameDraw,
+      Card,
+      CardCell,
+      CardInvite,
+    ]),
+  ],
+  exports: [TypeOrmModule],
 })
 export class DbModule {}

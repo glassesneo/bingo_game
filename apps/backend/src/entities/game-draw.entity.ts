@@ -1,12 +1,12 @@
 import {
-	Column,
-	CreateDateColumn,
-	Entity,
-	Index,
-	JoinColumn,
-	ManyToOne,
-	PrimaryGeneratedColumn,
-	Unique,
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
 } from "typeorm";
 import { Game } from "./game.entity";
 
@@ -14,27 +14,27 @@ import { Game } from "./game.entity";
 @Unique("uq_game_draws_game_draw_order", ["gameId", "drawOrder"])
 @Unique("uq_game_draws_game_number", ["gameId", "number"])
 export class GameDraw {
-	@PrimaryGeneratedColumn()
-	id!: number;
+  @PrimaryGeneratedColumn()
+  id!: number;
 
-	@Index()
-	@Column({ name: "game_id" })
-	gameId!: number;
+  @Index()
+  @Column({ name: "game_id" })
+  gameId!: number;
 
-	@ManyToOne(
-		() => Game,
-		(game) => game.draws,
-		{ onDelete: "CASCADE" },
-	)
-	@JoinColumn({ name: "game_id" })
-	game!: Game;
+  @ManyToOne(
+    () => Game,
+    (game) => game.draws,
+    { onDelete: "CASCADE" },
+  )
+  @JoinColumn({ name: "game_id" })
+  game!: Game;
 
-	@Column({ type: "int" })
-	number!: number;
+  @Column({ type: "int" })
+  number!: number;
 
-	@Column({ name: "draw_order", type: "int" })
-	drawOrder!: number;
+  @Column({ name: "draw_order", type: "int" })
+  drawOrder!: number;
 
-	@CreateDateColumn({ name: "drawn_at" })
-	drawnAt!: Date;
+  @CreateDateColumn({ name: "drawn_at" })
+  drawnAt!: Date;
 }
