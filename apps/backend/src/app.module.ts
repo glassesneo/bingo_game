@@ -1,6 +1,12 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { ApiModule } from "./api/api.module";
+import { CardsModule } from "./cards/cards.module";
+import { DbModule } from "./db/db.module";
+import { GamesModule } from "./games/games.module";
+import { ServersModule } from "./servers/servers.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
 	imports: [
@@ -19,6 +25,18 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 				logging: config.get<string>("DB_LOGGING") === "true",
 			}),
 		}),
+
+		DbModule,
+
+		ServersModule,
+
+		GamesModule,
+
+		UsersModule,
+
+		CardsModule,
+
+		ApiModule,
 	],
 })
 export class AppModule {}
