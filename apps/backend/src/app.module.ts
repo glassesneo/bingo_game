@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ApiModule } from "./api/api.module";
+import { AuthModule } from "./auth/auth.module";
 import { CardsModule } from "./cards/cards.module";
 import { DbModule } from "./db/db.module";
 import { GamesModule } from "./games/games.module";
@@ -9,6 +10,7 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     DbModule,
+    AuthModule,
     ServersModule,
     GamesModule,
     UsersModule,

@@ -6,12 +6,10 @@ import {
   JoinColumn,
   ManyToOne,
   OneToMany,
-  OneToOne,
   PrimaryGeneratedColumn,
   Unique,
 } from "typeorm";
 import { CardCell } from "./card-cell.entity";
-import { CardInvite } from "./card-invite.entity";
 import { Game } from "./game.entity";
 import { User } from "./user.entity";
 
@@ -53,10 +51,4 @@ export class Card {
     (cell) => cell.card,
   )
   cells!: CardCell[];
-
-  @OneToOne(
-    () => CardInvite,
-    (invite) => invite.card,
-  )
-  invite!: CardInvite | null;
 }

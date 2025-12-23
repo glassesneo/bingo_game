@@ -6,6 +6,7 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
 } from "typeorm";
 import { Card } from "./card.entity";
 import { CardInvite } from "./card-invite.entity";
@@ -14,6 +15,7 @@ import { GameParticipant } from "./game-participant.entity";
 import { Server } from "./server.entity";
 
 @Entity({ name: "games" })
+@Unique("uq_games_host_token", ["hostToken"])
 export class Game {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -21,6 +23,10 @@ export class Game {
   @Index()
   @Column({ name: "server_id" })
   serverId!: number;
+
+  @Index("IDX_games_host_token")
+  @Column({ name: "host_token", type: "varchar" })
+  hostToken!: string;
 
   @ManyToOne(
     () => Server,

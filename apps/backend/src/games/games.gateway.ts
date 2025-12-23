@@ -1,4 +1,11 @@
-import { Logger, UsePipes, ValidationPipe } from "@nestjs/common";
+import {
+  forwardRef,
+  Inject,
+  Logger,
+  UsePipes,
+  ValidationPipe,
+} from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import {
   ConnectedSocket,
@@ -13,8 +20,10 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Repository } from "typeorm";
+import { JwtPayload } from "../auth/jwt-payload.interface";
 import { GameParticipant } from "../entities/game-participant.entity";
 import { JoinGameDto } from "./dto/join-game.dto";
+import { GamesService } from "./games.service";
 
 @WebSocketGateway({
   cors: {
@@ -34,6 +43,9 @@ export class GamesGateway
   constructor(
     @InjectRepository(GameParticipant)
     private readonly participantRepo: Repository<GameParticipant>,
+    private readonly jwtService: JwtService,
+    @Inject(forwardRef(() => GamesService))
+    private readonly gamesService: GamesService,
   ) {}
 
   afterInit(_server: Server) {
@@ -50,24 +62,44 @@ export class GamesGateway
 
   /**
    * Client joins a game room to receive real-time updates.
-   * Validates that the user is a participant in the game before allowing join.
+   * Validates JWT token and user participation before allowing join.
+   * Emits game:state after successful join for state synchronization.
    */
   @SubscribeMessage("game:join")
   async handleJoinGame(
     @MessageBody() data: JoinGameDto,
     @ConnectedSocket() client: Socket,
   ) {
-    // Verify user is a participant in the game
+    // 1. Validate JWT token
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<JwtPayload>(data.playerToken);
+    } catch {
+      this.logger.warn(
+        `Client ${client.id} attempted to join game ${data.gameId} with invalid token`,
+      );
+      throw new WsException("Invalid or expired token");
+    }
+
+    // 2. Verify token's gameId matches requested gameId
+    if (payload.gameId !== data.gameId) {
+      this.logger.warn(
+        `Client ${client.id} token gameId ${payload.gameId} does not match requested gameId ${data.gameId}`,
+      );
+      throw new WsException("Token does not match requested game");
+    }
+
+    // 3. Verify user is a participant in the game
     const participant = await this.participantRepo.findOne({
       where: {
         gameId: data.gameId,
-        userId: data.userId,
+        userId: payload.sub,
       },
     });
 
     if (!participant) {
       this.logger.warn(
-        `Client ${client.id} attempted to join game ${data.gameId} as user ${data.userId} but is not a participant`,
+        `Client ${client.id} attempted to join game ${data.gameId} as user ${payload.sub} but is not a participant`,
       );
       throw new WsException("User is not a participant in this game");
     }
@@ -76,18 +108,50 @@ export class GamesGateway
     client.join(roomName);
 
     // Store user info on the socket for later use
-    client.data.userId = data.userId;
+    client.data.userId = payload.sub;
     client.data.gameId = data.gameId;
+    client.data.cardId = payload.cardId;
+    client.data.displayName = payload.displayName;
 
     this.logger.log(
-      `Client ${client.id} joined game ${data.gameId} (user ${data.userId})`,
+      `Client ${client.id} joined game ${data.gameId} (user ${payload.sub})`,
     );
 
-    // Acknowledge join
+    // 4. Acknowledge join
     client.emit("game:joined", {
       gameId: data.gameId,
-      userId: data.userId,
+      userId: payload.sub,
     });
+
+    // 5. Send current game state for synchronization
+    try {
+      const state = await this.gamesService.getGameState(data.gameId);
+      client.emit("game:state", {
+        game: {
+          id: state.game.id,
+          serverId: state.game.serverId,
+          status: state.game.status,
+          startedAt: state.game.startedAt?.toISOString() ?? null,
+          endedAt: state.game.endedAt?.toISOString() ?? null,
+        },
+        participantCount: state.participantCount,
+        drawnNumbers: state.drawnNumbers.map((d) => ({
+          number: d.number,
+          drawOrder: d.drawOrder,
+          drawnAt: d.drawnAt.toISOString(),
+        })),
+        winners: state.winners.map((w) => ({
+          userId: w.userId,
+          displayName: w.displayName,
+          claimedAt: w.claimedAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to send game:state to client ${client.id}:`,
+        error,
+      );
+    }
   }
 
   /**
@@ -104,6 +168,8 @@ export class GamesGateway
     // Clear socket data
     client.data.userId = undefined;
     client.data.gameId = undefined;
+    client.data.cardId = undefined;
+    client.data.displayName = undefined;
 
     this.logger.log(`Client ${client.id} left game ${data.gameId}`);
   }

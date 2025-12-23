@@ -1,11 +1,11 @@
-import { IsInt, IsPositive } from "class-validator";
+import { IsInt, IsNotEmpty, IsPositive, IsString } from "class-validator";
 
 export class JoinGameDto {
   @IsInt()
   @IsPositive()
   gameId!: number;
 
-  @IsInt()
-  @IsPositive()
-  userId!: number;
+  @IsString()
+  @IsNotEmpty()
+  playerToken!: string;
 }

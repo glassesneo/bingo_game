@@ -13,6 +13,7 @@ import { User } from "./user.entity";
 
 @Entity({ name: "game_participants" })
 @Unique("uq_game_participants_game_user", ["gameId", "userId"])
+@Unique("uq_game_participants_game_display_name", ["gameId", "displayName"])
 export class GameParticipant {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -41,6 +42,14 @@ export class GameParticipant {
   @JoinColumn({ name: "user_id" })
   user!: User;
 
+  /** Display name for this participant in this game (scoped to game) */
+  @Column({ name: "display_name", type: "varchar" })
+  displayName!: string;
+
   @CreateDateColumn({ name: "joined_at" })
   joinedAt!: Date;
+
+  /** When this participant won (null if not a winner) */
+  @Column({ name: "won_at", type: "datetime", nullable: true })
+  wonAt!: Date | null;
 }

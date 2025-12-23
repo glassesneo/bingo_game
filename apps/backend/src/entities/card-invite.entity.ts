@@ -4,16 +4,19 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
-  OneToOne,
   PrimaryGeneratedColumn,
   Unique,
 } from "typeorm";
-import { Card } from "./card.entity";
 import { Game } from "./game.entity";
 
+/**
+ * CardInvite represents a reusable game invite token.
+ * One invite per game (UNIQUE gameId), unlimited players can use the same token.
+ * The cards table's UNIQUE(gameId, userId) constraint prevents duplicate joins.
+ */
 @Entity({ name: "card_invites" })
 @Unique("uq_card_invites_token", ["token"])
-@Unique("uq_card_invites_card_id", ["cardId"])
+@Unique("uq_card_invites_game_id", ["gameId"])
 export class CardInvite {
   @PrimaryGeneratedColumn()
   id!: number;
@@ -33,23 +36,6 @@ export class CardInvite {
   @Column({ type: "varchar" })
   token!: string;
 
-  @Column({ name: "card_id", nullable: true })
-  cardId!: number | null;
-
-  @OneToOne(
-    () => Card,
-    (card) => card.invite,
-    {
-      nullable: true,
-      onDelete: "SET NULL",
-    },
-  )
-  @JoinColumn({ name: "card_id" })
-  card!: Card | null;
-
   @Column({ name: "expires_at", type: "datetime" })
   expiresAt!: Date;
-
-  @Column({ name: "used_at", type: "datetime", nullable: true })
-  usedAt!: Date | null;
 }

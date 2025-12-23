@@ -4,8 +4,10 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, IsNull, Repository } from "typeorm";
+import { DataSource, Repository } from "typeorm";
+import { JwtPayload } from "../auth/jwt-payload.interface";
 import { Card } from "../entities/card.entity";
 import { CardCell } from "../entities/card-cell.entity";
 import { CardInvite } from "../entities/card-invite.entity";
@@ -13,147 +15,230 @@ import { GameParticipant } from "../entities/game-participant.entity";
 import { User } from "../entities/user.entity";
 import { ClaimInviteDto } from "./dto/claim-invite.dto";
 
+export interface ClaimInviteResult {
+  session: {
+    token: string;
+    userId: number;
+    displayName: string;
+    gameId: number;
+    cardId: number;
+  };
+  card: Card;
+  user: User;
+}
+
 @Injectable()
 export class CardsService {
   constructor(
-    @InjectRepository(CardInvite) readonly _inviteRepo: Repository<CardInvite>,
-    @InjectRepository(User) readonly _userRepo: Repository<User>,
-    @InjectRepository(GameParticipant)
-    readonly _participantRepo: Repository<GameParticipant>,
     @InjectRepository(Card)
     private readonly cardRepo: Repository<Card>,
-    @InjectRepository(CardCell) readonly _cellRepo: Repository<CardCell>,
     private readonly dataSource: DataSource,
+    private readonly jwtService: JwtService,
   ) {}
 
-  async claimInvite(token: string, dto: ClaimInviteDto): Promise<Card> {
+  /**
+   * Claim an invite - creates user, participant, card if needed, returns JWT session.
+   * Supports re-login: if displayName already exists for this game, returns existing card with new JWT.
+   * Display names are scoped to games (unique per game, not globally).
+   */
+  async claimInvite(
+    token: string,
+    dto: ClaimInviteDto,
+  ): Promise<ClaimInviteResult> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1. Atomically claim the invite using conditional update
-      // This prevents race conditions by ensuring only one request can claim the invite
-      const updateResult = await queryRunner.manager.update(
-        CardInvite,
-        {
-          token,
-          usedAt: IsNull(), // Only update if not already used
-        },
-        {
-          usedAt: new Date(),
-        },
-      );
-
-      if (updateResult.affected === 0) {
-        // Either invite doesn't exist or was already used
-        const existingInvite = await queryRunner.manager.findOne(CardInvite, {
-          where: { token },
-        });
-
-        if (!existingInvite) {
-          throw new NotFoundException(`Invite with token ${token} not found`);
-        }
-
-        throw new ConflictException("Invite has already been used");
-      }
-
-      // 2. Load the claimed invite with relations
+      // 1. Find the invite (reusable - no usedAt check)
       const invite = await queryRunner.manager.findOne(CardInvite, {
         where: { token },
         relations: ["game"],
       });
 
       if (!invite) {
-        throw new Error(
-          "Invite not found after update - this should not happen",
-        );
+        throw new NotFoundException(`Invite with token ${token} not found`);
       }
 
       if (new Date() > invite.expiresAt) {
-        // Rollback the usedAt update since invite is expired
         throw new BadRequestException("Invite has expired");
       }
 
-      // 3. Find or create User
-      let user = await queryRunner.manager.findOne(User, {
-        where: { displayName: dto.displayName },
-      });
+      if (invite.game.status === "ended") {
+        throw new BadRequestException("Game has already ended");
+      }
 
-      if (!user) {
+      // 2. Check if displayName is already used in this game (re-login support)
+      const existingParticipant = await queryRunner.manager.findOne(
+        GameParticipant,
+        {
+          where: {
+            gameId: invite.gameId,
+            displayName: dto.displayName,
+          },
+          relations: ["user"],
+        },
+      );
+
+      let user: User;
+      let card: Card;
+
+      if (existingParticipant) {
+        // Re-login: return existing card with new JWT
+        user = existingParticipant.user;
+
+        const existingCard = await queryRunner.manager.findOne(Card, {
+          where: {
+            gameId: invite.gameId,
+            userId: user.id,
+          },
+          relations: ["cells"],
+        });
+
+        if (!existingCard) {
+          throw new Error(
+            `Card not found for existing participant user ${user.id} in game ${invite.gameId}`,
+          );
+        }
+        card = existingCard;
+      } else {
+        // New player: create user, participant, and card
+        // 3. Create new User with unique display name
         user = queryRunner.manager.create(User, {
           displayName: dto.displayName,
         });
-        user = await queryRunner.manager.save(User, user);
-      }
+        try {
+          user = await queryRunner.manager.save(User, user);
+        } catch (error) {
+          // Handle unique constraint violation on global display_name
+          // Generate a unique suffix if collision occurs
+          if (
+            error instanceof Error &&
+            error.message.includes("UNIQUE constraint")
+          ) {
+            const suffix = Math.random().toString(36).substring(2, 6);
+            user = queryRunner.manager.create(User, {
+              displayName: `${dto.displayName}_${suffix}`,
+            });
+            user = await queryRunner.manager.save(User, user);
+          } else {
+            throw error;
+          }
+        }
 
-      // 4. Check if user already has a card for this game
-      const existingCard = await queryRunner.manager.findOne(Card, {
-        where: {
+        // 4. Create GameParticipant with scoped displayName
+        let participant = queryRunner.manager.create(GameParticipant, {
           gameId: invite.gameId,
           userId: user.id,
-        },
-      });
+          displayName: dto.displayName,
+        });
+        try {
+          participant = await queryRunner.manager.save(
+            GameParticipant,
+            participant,
+          );
+        } catch (error) {
+          // Handle race condition where another request claimed this displayName
+          if (
+            error instanceof Error &&
+            error.message.includes("UNIQUE constraint")
+          ) {
+            throw new ConflictException(
+              `Display name "${dto.displayName}" is already taken in this game`,
+            );
+          }
+          throw error;
+        }
 
-      if (existingCard) {
-        throw new BadRequestException("User already has a card for this game");
-      }
-
-      // 5. Create GameParticipant (if not exists)
-      let participant = await queryRunner.manager.findOne(GameParticipant, {
-        where: {
-          gameId: invite.gameId,
-          userId: user.id,
-        },
-      });
-
-      if (!participant) {
-        participant = queryRunner.manager.create(GameParticipant, {
+        // 5. Create Card
+        const newCard = queryRunner.manager.create(Card, {
           gameId: invite.gameId,
           userId: user.id,
         });
-        participant = await queryRunner.manager.save(
-          GameParticipant,
-          participant,
-        );
+        const savedCard = await queryRunner.manager.save(Card, newCard);
+
+        // 6. Generate 25 CardCells (5x5 bingo grid)
+        const cells = this.generateBingoGrid(savedCard.id);
+        await queryRunner.manager.save(CardCell, cells);
+
+        // Load card with cells
+        const loadedCard = await queryRunner.manager.findOne(Card, {
+          where: { id: savedCard.id },
+          relations: ["cells"],
+        });
+
+        if (!loadedCard) {
+          throw new Error(
+            `Card with id ${savedCard.id} not found after creation`,
+          );
+        }
+        card = loadedCard;
       }
-
-      // 6. Create Card
-      const card = queryRunner.manager.create(Card, {
-        gameId: invite.gameId,
-        userId: user.id,
-      });
-      const savedCard = await queryRunner.manager.save(Card, card);
-
-      // 7. Generate 25 CardCells (5x5 bingo grid)
-      const cells = this.generateBingoGrid(savedCard.id);
-      const _savedCells = await queryRunner.manager.save(CardCell, cells);
-
-      // 8. Link invite to the created card
-      invite.cardId = savedCard.id;
-      await queryRunner.manager.save(CardInvite, invite);
 
       await queryRunner.commitTransaction();
 
-      // Load card with cells for response
-      const cardWithCells = await this.cardRepo.findOne({
-        where: { id: savedCard.id },
-        relations: ["cells"],
-      });
+      // 7. Generate JWT token
+      const payload: JwtPayload = {
+        sub: user.id,
+        gameId: invite.gameId,
+        cardId: card.id,
+        displayName: dto.displayName, // Use the scoped display name
+      };
+      const jwtToken = await this.jwtService.signAsync(payload);
 
-      if (!cardWithCells) {
-        throw new Error(
-          `Card with id ${savedCard.id} not found after creation`,
-        );
-      }
-
-      return cardWithCells;
+      return {
+        session: {
+          token: jwtToken,
+          userId: user.id,
+          displayName: dto.displayName,
+          gameId: invite.gameId,
+          cardId: card.id,
+        },
+        card,
+        user,
+      };
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Get card by ID with cells
+   */
+  async getCard(cardId: number): Promise<Card> {
+    const card = await this.cardRepo.findOne({
+      where: { id: cardId },
+      relations: ["cells"],
+    });
+
+    if (!card) {
+      throw new NotFoundException(`Card with id ${cardId} not found`);
+    }
+
+    return card;
+  }
+
+  /**
+   * Get card for authenticated user
+   */
+  async getMyCard(
+    userId: number,
+    gameId: number,
+    cardId: number,
+  ): Promise<Card> {
+    const card = await this.cardRepo.findOne({
+      where: { id: cardId, userId, gameId },
+      relations: ["cells"],
+    });
+
+    if (!card) {
+      throw new NotFoundException("Card not found");
+    }
+
+    return card;
   }
 
   /**
