@@ -1,68 +1,52 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: light --default, dark;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
+/* Number draw animation */
+@keyframes number-pop {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* Bingo winner animation */
+@keyframes bingo-celebration {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 oklch(var(--p) / 0.7);
   }
-  a:hover {
-    color: #747bff;
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 20px oklch(var(--p) / 0);
   }
-  button {
-    background-color: #f9f9f9;
-  }
+}
+
+/* Cell mark animation */
+@keyframes cell-mark {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Pulse animation for waiting state */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.number-drawn {
+  animation: number-pop 0.3s ease-out;
+}
+
+.winner-announcement {
+  animation: bingo-celebration 0.6s ease-in-out 3;
+}
+
+.cell-just-marked {
+  animation: cell-mark 0.2s ease-out;
+}
+
+.pulse-waiting {
+  animation: pulse-soft 2s ease-in-out infinite;
 }
