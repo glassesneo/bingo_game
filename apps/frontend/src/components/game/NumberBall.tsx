@@ -1,6 +1,6 @@
 interface NumberBallProps {
   number: number;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl";
   isNew?: boolean;
 }
 
@@ -14,6 +14,7 @@ export function NumberBall({
     md: "w-16 h-16 text-2xl",
     lg: "w-24 h-24 text-4xl",
     xl: "w-80 h-80 text-9xl",
+    "2xl": "w-[28rem] h-[28rem] text-[12rem]",
   };
 
   // Get the letter for the number (B: 1-15, I: 16-30, N: 31-45, G: 46-60, O: 61-75)
@@ -32,6 +33,7 @@ export function NumberBall({
     md: "text-xs",
     lg: "text-sm",
     xl: "text-5xl",
+    "2xl": "text-6xl",
   };
 
   const numberMarginClasses = {
@@ -39,11 +41,12 @@ export function NumberBall({
     md: "-mt-1",
     lg: "-mt-1",
     xl: "-mt-2",
+    "2xl": "-mt-4",
   };
 
   return (
     <div
-      className={`${sizeClasses[size]} ${isNew ? "number-drawn" : ""} rounded-full bg-primary text-primary-content flex flex-col items-center justify-center font-bold ${size === "xl" ? "shadow-2xl" : "shadow-lg"}`}
+      className={`${sizeClasses[size]} ${isNew ? "number-drawn" : ""} rounded-full bg-primary text-primary-content flex flex-col items-center justify-center font-bold ${size === "xl" || size === "2xl" ? "shadow-2xl" : "shadow-lg"}`}
     >
       <span className={`${letterSizeClasses[size]} opacity-70`}>{letter}</span>
       <span className={numberMarginClasses[size]}>{number}</span>

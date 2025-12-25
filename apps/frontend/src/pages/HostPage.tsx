@@ -449,7 +449,7 @@ export function HostPage() {
                         </span>
                         <NumberBall
                           number={latestDraw.number}
-                          size="xl"
+                          size="2xl"
                           isNew={latestDraw.number === lastDrawnNumber}
                         />
                         <div className="mt-8">
