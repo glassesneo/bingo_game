@@ -4,6 +4,7 @@ import { DrawnHistory } from "../components/game/DrawnHistory";
 import { GaraGaraDrawer } from "../components/game/GaraGaraDrawer";
 import { NumberBall } from "../components/game/NumberBall";
 import { QRCodeDisplay } from "../components/game/QRCodeDisplay";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { api } from "../services/api";
 import { socketService } from "../services/socket";
 import type {
@@ -42,15 +43,29 @@ export function HostPage() {
   const [isWinnersOpen, setIsWinnersOpen] = useState(true);
   const [isReachesOpen, setIsReachesOpen] = useState(true);
   const [debugMode, setDebugMode] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<DrawerMode>("classic");
+  const [drawerMode, setDrawerMode] = useLocalStorage<DrawerMode>(
+    "bingo_drawer_mode",
+    "classic",
+  );
   const [isGaragaraSpinning, setIsGaragaraSpinning] = useState(false);
   const [garagaraDrawnNumber, setGaragaraDrawnNumber] = useState<number | null>(
     null,
   );
+  // Store pending draw for garagara mode (added to history after reveal)
+  const [pendingGaragaraDraw, setPendingGaragaraDraw] =
+    useState<DrawnNumber | null>(null);
+  const [showResultDisplay, setShowResultDisplay] = useState(false);
 
   // Generate join URL - use PUBLIC_URL for QR code (for LAN access)
   const publicUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
   const joinUrl = inviteToken ? `${publicUrl}/join/${inviteToken}` : null;
+
+  const commitDraw = useCallback((draw: DrawnNumber) => {
+    setDrawnNumbers((prev) => [...prev, draw]);
+    setLastDrawnNumber(draw.number);
+    // Clear the "new" indicator after animation
+    setTimeout(() => setLastDrawnNumber(null), 500);
+  }, []);
 
   // Start game
   const handleStartGame = useCallback(async () => {
@@ -80,16 +95,13 @@ export function HostPage() {
 
     try {
       const response = await api.drawNumber(gameId, hostToken);
-      setDrawnNumbers((prev) => [...prev, response.draw]);
-      setLastDrawnNumber(response.draw.number);
-      // Clear the "new" indicator after animation
-      setTimeout(() => setLastDrawnNumber(null), 500);
+      commitDraw(response.draw);
     } catch (err) {
       setError(err instanceof Error ? err.message : "番号を引けませんでした");
     } finally {
       setIsDrawing(false);
     }
-  }, [gameId, hostToken, isDrawing]);
+  }, [commitDraw, gameId, hostToken, isDrawing]);
 
   // End game
   const handleEndGame = useCallback(async () => {
@@ -114,6 +126,7 @@ export function HostPage() {
   const handleGaragaraSpinStart = useCallback(() => {
     setGaragaraDrawnNumber(null); // Reset previous drawn number
     setIsGaragaraSpinning(true);
+    setShowResultDisplay(false);
   }, []);
 
   // GaraGara spin finish handler - called when animation finishes, then calls API
@@ -125,16 +138,48 @@ export function HostPage() {
     try {
       // Call the API to get the actual drawn number
       const response = await api.drawNumber(gameId, hostToken);
-      setDrawnNumbers((prev) => [...prev, response.draw]);
-      setLastDrawnNumber(response.draw.number);
+      // Store the draw but don't add to history yet (wait for reveal)
+      setPendingGaragaraDraw(response.draw);
       // Set the drawn number for GaraGara to display
       setGaragaraDrawnNumber(response.draw.number);
-      // Clear the "new" indicator after animation
-      setTimeout(() => setLastDrawnNumber(null), 500);
+      setShowResultDisplay(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "番号を引けませんでした");
     }
   }, [gameId, hostToken]);
+
+  // GaraGara result revealed handler - add to history after ball is shown
+  const handleGaragaraResultRevealed = useCallback(() => {
+    if (pendingGaragaraDraw) {
+      commitDraw(pendingGaragaraDraw);
+      setPendingGaragaraDraw(null);
+    }
+  }, [commitDraw, pendingGaragaraDraw]);
+
+  useEffect(() => {
+    if (!pendingGaragaraDraw) return;
+
+    const timer = setTimeout(() => {
+      setShowResultDisplay(true);
+      handleGaragaraResultRevealed();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [handleGaragaraResultRevealed, pendingGaragaraDraw]);
+
+  useEffect(() => {
+    if (gameStatus !== "running") return;
+
+    if (drawerMode === "classic") {
+      if (pendingGaragaraDraw) {
+        commitDraw(pendingGaragaraDraw);
+        setPendingGaragaraDraw(null);
+      }
+      setIsGaragaraSpinning(false);
+      setGaragaraDrawnNumber(null);
+      setShowResultDisplay(false);
+    }
+  }, [commitDraw, drawerMode, gameStatus, pendingGaragaraDraw]);
 
   // Fetch initial host view and set up WebSocket
   useEffect(() => {
@@ -286,6 +331,30 @@ export function HostPage() {
 
   const remainingNumbers = 75 - drawnNumbers.length;
 
+  const DrawerModeSelector = () => (
+    <div className="card bg-base-200">
+      <div className="card-body">
+        <h3 className="card-title text-sm">抽選モード</h3>
+        <div className="join w-full">
+          <button
+            type="button"
+            className={`join-item btn flex-1 ${drawerMode === "classic" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setDrawerMode("classic")}
+          >
+            クラシック
+          </button>
+          <button
+            type="button"
+            className={`join-item btn flex-1 ${drawerMode === "garagara" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setDrawerMode("garagara")}
+          >
+            ガラガラ3D
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-base-100 py-4">
       {/* Winner Announcement Overlay */}
@@ -374,28 +443,7 @@ export function HostPage() {
                 <div className="badge badge-warning badge-lg">開始待ち</div>
               </div>
 
-              {/* Drawer Mode Selector */}
-              <div className="card bg-base-200">
-                <div className="card-body">
-                  <h3 className="card-title text-sm">抽選モード</h3>
-                  <div className="join w-full">
-                    <button
-                      type="button"
-                      className={`join-item btn flex-1 ${drawerMode === "classic" ? "btn-primary" : "btn-ghost"}`}
-                      onClick={() => setDrawerMode("classic")}
-                    >
-                      クラシック
-                    </button>
-                    <button
-                      type="button"
-                      className={`join-item btn flex-1 ${drawerMode === "garagara" ? "btn-primary" : "btn-ghost"}`}
-                      onClick={() => setDrawerMode("garagara")}
-                    >
-                      ガラガラ3D
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <DrawerModeSelector />
 
               {/* Debug Mode Toggle */}
               <div className="form-control">
@@ -437,6 +485,7 @@ export function HostPage() {
         <div className="grid grid-cols-2 gap-4 px-4 items-start">
           {/* LEFT SIDE - Current Number or GaraGara */}
           <div className="flex flex-col gap-4 sticky top-4">
+            <DrawerModeSelector />
             {/* Number Display Panel */}
             <div className="bg-base-200 rounded-2xl flex flex-col h-[calc(100vh-200px)] overflow-hidden">
               {/* Classic Mode */}
@@ -476,6 +525,7 @@ export function HostPage() {
                   <GaraGaraDrawer
                     isSpinning={isGaragaraSpinning}
                     drawnNumber={garagaraDrawnNumber}
+                    showResultDisplay={showResultDisplay}
                     onSpinFinish={handleGaragaraSpinFinish}
                     history={drawnNumbers.map((d) => d.number)}
                   />

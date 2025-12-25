@@ -12,7 +12,11 @@ import * as THREE from "three";
 const MAX_NUMBER = 75;
 
 // --- Helper function: Generate texture with number ---
-function createNumberTexture(number: number, baseColorHsl: number) {
+function createNumberTexture(
+  number: number,
+  baseColorHsl: number,
+  vivid = false,
+) {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;
@@ -21,16 +25,19 @@ function createNumberTexture(number: number, baseColorHsl: number) {
     throw new Error("Failed to get 2d context");
   }
 
-  const color = new THREE.Color().setHSL(baseColorHsl, 0.8, 0.6);
+  // More saturated and brighter colors when vivid is true
+  const saturation = vivid ? 1.0 : 0.8;
+  const lightness = vivid ? 0.55 : 0.6;
+  const color = new THREE.Color().setHSL(baseColorHsl, saturation, lightness);
   context.fillStyle = `#${color.getHexString()}`;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   context.font = "bold 100px Arial";
   context.textAlign = "center";
   context.textBaseline = "middle";
-  context.fillStyle = "black";
-  context.shadowColor = "rgba(0,0,0,0.3)";
-  context.shadowBlur = 10;
+  context.fillStyle = vivid ? "white" : "black";
+  context.shadowColor = vivid ? "rgba(0,0,0,0.5)" : "rgba(0,0,0,0.3)";
+  context.shadowBlur = vivid ? 15 : 10;
   context.fillText(String(number), canvas.width / 2, canvas.height / 2);
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -89,8 +96,8 @@ function GalaGala({
       );
       totalRotation.current += currentRot.z * delta;
 
-      // Stop after 4π (2 full rotations)
-      if (totalRotation.current >= 4 * Math.PI && !isFinishedRef.current) {
+      // Stop after 2π (1 full rotation)
+      if (totalRotation.current >= 2 * Math.PI && !isFinishedRef.current) {
         isFinishedRef.current = true;
 
         // Reset rotation to initial state
@@ -332,7 +339,7 @@ function ResultDisplay({ number }: { number: number }) {
 
   const { texture, color } = useMemo(() => {
     const hue = ((number * 137.5) % 360) / 360;
-    return createNumberTexture(number, hue);
+    return createNumberTexture(number, hue, true); // vivid = true
   }, [number]);
 
   // Dispose texture on unmount
@@ -356,8 +363,8 @@ function ResultDisplay({ number }: { number: number }) {
   return (
     <group ref={groupRef} renderOrder={10}>
       <pointLight
-        intensity={2}
-        distance={5}
+        intensity={3}
+        distance={6}
         color="white"
         position={[2, 2, 2]}
       />
@@ -365,12 +372,10 @@ function ResultDisplay({ number }: { number: number }) {
         <sphereGeometry args={[1, 64, 64]} />
         <meshStandardMaterial
           map={texture}
-          roughness={0.1}
-          metalness={0.2}
+          roughness={0.05}
+          metalness={0.3}
           emissive={color}
-          emissiveIntensity={0.2}
-          depthTest={false}
-          depthWrite={false}
+          emissiveIntensity={0.4}
         />
       </mesh>
       <Billboard position={[0, -1.5, 0]} follow>
@@ -392,7 +397,9 @@ function ResultDisplay({ number }: { number: number }) {
 interface GaraGaraDrawerProps {
   isSpinning: boolean;
   drawnNumber: number | null; // The actual drawn number from the API
+  showResultDisplay: boolean;
   onSpinFinish: () => void; // Called when animation finishes, parent should call API
+  onResultRevealed?: () => void; // Called when the result ball is fully revealed
   history: number[];
 }
 
@@ -400,10 +407,10 @@ interface GaraGaraDrawerProps {
 export function GaraGaraDrawer({
   isSpinning,
   drawnNumber,
+  showResultDisplay,
   onSpinFinish,
   history,
 }: GaraGaraDrawerProps) {
-  const [showResultDisplay, setShowResultDisplay] = useState(false);
   const [message, setMessage] = useState("準備OK");
   const [displayedNumber, setDisplayedNumber] = useState<number | null>(null);
 
@@ -411,7 +418,6 @@ export function GaraGaraDrawer({
   useEffect(() => {
     if (isSpinning) {
       setDisplayedNumber(null);
-      setShowResultDisplay(false);
       setMessage("回転中...");
     }
   }, [isSpinning]);
@@ -420,15 +426,15 @@ export function GaraGaraDrawer({
   useEffect(() => {
     if (drawnNumber !== null) {
       setDisplayedNumber(drawnNumber);
-      setMessage(`結果: ${drawnNumber}!`);
-
-      const timer = setTimeout(() => {
-        setShowResultDisplay(true);
-      }, 1500);
-
-      return () => clearTimeout(timer);
+      // Don't show result message yet - wait for reveal
     }
   }, [drawnNumber]);
+
+  useEffect(() => {
+    if (drawnNumber !== null && showResultDisplay) {
+      setMessage(`結果: ${drawnNumber}!`);
+    }
+  }, [drawnNumber, showResultDisplay]);
 
   const handleSpinAnimationFinish = () => {
     // Just notify parent that animation finished - parent will call API
