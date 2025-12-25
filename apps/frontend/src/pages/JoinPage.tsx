@@ -20,24 +20,48 @@ export function JoinPage() {
 
   // Check if existing session is valid for this game
   useEffect(() => {
-    if (!session) {
+    if (!inviteToken) {
       setIsCheckingSession(false);
       return;
     }
 
-    // Try to load card with existing session to verify it's still valid
+    // Always get invite info first to know which game this invite is for
     api
-      .getMyCard()
-      .then(() => {
-        // Session is valid, redirect to player page
-        navigate(`/play/${session.gameId}`, { replace: true });
+      .getInviteInfo(inviteToken)
+      .then((inviteInfo) => {
+        // If no session, just show join form
+        if (!session) {
+          setIsCheckingSession(false);
+          return;
+        }
+
+        // Check if session is for the same game as this invite
+        if (session.gameId !== inviteInfo.gameId) {
+          // Different game - clear old session and show join form
+          setSession(null);
+          setIsCheckingSession(false);
+          return;
+        }
+
+        // Same game - verify card still exists
+        return api
+          .getMyCard()
+          .then(() => {
+            // Session is valid for this game, redirect to player page
+            navigate(`/play/${session.gameId}`, { replace: true });
+          })
+          .catch(() => {
+            // Session is invalid (card not found, etc.), clear it
+            setSession(null);
+            setIsCheckingSession(false);
+          });
       })
       .catch(() => {
-        // Session is invalid (card not found, etc.), clear it
-        setSession(null);
+        // Invite not found or expired - show error
+        setError("招待リンクが無効または期限切れです");
         setIsCheckingSession(false);
       });
-  }, [session, setSession, navigate]);
+  }, [inviteToken, session, setSession, navigate]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();

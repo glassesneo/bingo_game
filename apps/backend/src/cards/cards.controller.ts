@@ -14,12 +14,24 @@ import { CardsService } from "./cards.service";
 import {
   CardResponseDto,
   ClaimInviteResponseDto,
+  InviteInfoResponseDto,
 } from "./dto/card-response.dto";
 import { ClaimInviteDto } from "./dto/claim-invite.dto";
 
 @Controller()
 export class CardsController {
   constructor(private readonly cardsService: CardsService) {}
+
+  /**
+   * GET /invites/:token
+   * Get invite info without claiming (for session validation)
+   */
+  @Get("invites/:token")
+  async getInviteInfo(
+    @Param("token") token: string,
+  ): Promise<InviteInfoResponseDto> {
+    return this.cardsService.getInviteInfo(token);
+  }
 
   /**
    * POST /invites/:token/claim

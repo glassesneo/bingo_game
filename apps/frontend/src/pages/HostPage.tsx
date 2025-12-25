@@ -40,6 +40,7 @@ export function HostPage() {
   const [newWinner, setNewWinner] = useState<Winner | null>(null);
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(true);
   const [isWinnersOpen, setIsWinnersOpen] = useState(true);
+  const [isReachesOpen, setIsReachesOpen] = useState(true);
   const [debugMode, setDebugMode] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("classic");
   const [isGaragaraSpinning, setIsGaragaraSpinning] = useState(false);
@@ -286,7 +287,7 @@ export function HostPage() {
   const remainingNumbers = 75 - drawnNumbers.length;
 
   return (
-    <div className="min-h-screen bg-base-100 p-4">
+    <div className="min-h-screen bg-base-100 py-4">
       {/* Winner Announcement Overlay */}
       {newWinner && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 winner-overlay">
@@ -433,7 +434,7 @@ export function HostPage() {
 
       {/* RUNNING PHASE LAYOUT */}
       {gameStatus === "running" && (
-        <div className="grid grid-cols-2 gap-4 mx-auto max-w-screen-2xl items-start">
+        <div className="grid grid-cols-2 gap-4 px-4 items-start">
           {/* LEFT SIDE - Current Number or GaraGara */}
           <div className="flex flex-col gap-4 sticky top-4">
             {/* Number Display Panel */}
@@ -523,31 +524,64 @@ export function HostPage() {
               </div>
             </div>
 
-            {/* Reach Notifications */}
-            {reaches.length > 0 && (
-              <div className="card bg-warning/10 border-2 border-warning/30 shadow-lg">
-                <div className="card-body p-6">
-                  <div className="flex items-center gap-2">
-                    <div className="badge badge-warning badge-lg">
-                      {reaches.length}
-                    </div>
-                    <h3 className="font-bold text-xl">リーチ</h3>
-                  </div>
-                  <div className="mt-4">
-                    <ul className="space-y-2 max-h-32 overflow-y-auto">
-                      {reaches.map((reach) => (
-                        <li
-                          key={`${reach.userId}-${reach.reachedAt}`}
-                          className="text-base font-medium"
-                        >
-                          {reach.displayName}
-                        </li>
-                      ))}
-                    </ul>
+            {/* Reach Notifications - Always show, filter out winners */}
+            {(() => {
+              const winnerUserIds = new Set(winners.map((w) => w.userId));
+              const activeReaches = reaches.filter(
+                (r) => !winnerUserIds.has(r.userId),
+              );
+              return (
+                <div className="card bg-warning/10 border-2 border-warning/30 shadow-lg">
+                  <div className="card-body p-6">
+                    <button
+                      onClick={() => setIsReachesOpen(!isReachesOpen)}
+                      className="flex items-center gap-2 w-full text-left"
+                      type="button"
+                    >
+                      <div className="badge badge-warning badge-lg">
+                        {activeReaches.length}
+                      </div>
+                      <h3 className="font-bold text-xl flex-1">リーチ</h3>
+                      <svg
+                        className={`w-5 h-5 transition-transform ${isReachesOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-label="リーチを開閉"
+                      >
+                        <title>リーチを開閉</title>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    {isReachesOpen && (
+                      <div className="mt-4">
+                        {activeReaches.length > 0 ? (
+                          <ul className="space-y-2 max-h-32 overflow-y-auto">
+                            {activeReaches.map((reach) => (
+                              <li
+                                key={`${reach.userId}-${reach.reachedAt}`}
+                                className="text-base font-medium"
+                              >
+                                {reach.displayName}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-center text-base-content/50 py-4">
+                            --
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Winners List - HIGHLIGHTED & COLLAPSIBLE */}
             <div className="card bg-success/10 border-2 border-success/30 shadow-xl">

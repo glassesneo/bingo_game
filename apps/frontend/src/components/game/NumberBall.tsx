@@ -1,6 +1,6 @@
 interface NumberBallProps {
   number: number;
-  size?: "sm" | "md" | "lg" | "xl" | "2xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "history";
   isNew?: boolean;
 }
 
@@ -15,6 +15,7 @@ export function NumberBall({
     lg: "w-24 h-24 text-4xl",
     xl: "w-80 h-80 text-9xl",
     "2xl": "w-[28rem] h-[28rem] text-[12rem]",
+    history: "w-16 h-16 text-xl",
   };
 
   // Get the letter for the number (B: 1-15, I: 16-30, N: 31-45, G: 46-60, O: 61-75)
@@ -34,6 +35,7 @@ export function NumberBall({
     lg: "text-sm",
     xl: "text-5xl",
     "2xl": "text-6xl",
+    history: "text-xs",
   };
 
   const numberMarginClasses = {
@@ -42,6 +44,7 @@ export function NumberBall({
     lg: "-mt-1",
     xl: "-mt-2",
     "2xl": "-mt-4",
+    history: "-mt-1",
   };
 
   return (

@@ -223,6 +223,27 @@ export class CardsService {
   }
 
   /**
+   * Get invite info by token (without claiming)
+   */
+  async getInviteInfo(
+    token: string,
+  ): Promise<{ gameId: number; gameStatus: string }> {
+    const invite = await this.dataSource.manager.findOne(CardInvite, {
+      where: { token },
+      relations: ["game"],
+    });
+
+    if (!invite) {
+      throw new NotFoundException(`Invite with token ${token} not found`);
+    }
+
+    return {
+      gameId: invite.gameId,
+      gameStatus: invite.game.status,
+    };
+  }
+
+  /**
    * Get card by ID with cells
    */
   async getCard(cardId: number): Promise<Card> {

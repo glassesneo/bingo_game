@@ -7,6 +7,7 @@ import type {
   EndGameResponse,
   GameState,
   HostView,
+  InviteInfoResponse,
   NotifyReachResponse,
   ServerResponse,
   StartGameResponse,
@@ -84,6 +85,9 @@ export const api = {
     request<EndGameResponse>("POST", `/games/${gameId}/end`, { hostToken }),
 
   // Player actions
+  getInviteInfo: (token: string) =>
+    request<InviteInfoResponse>("GET", `/invites/${token}`),
+
   claimInvite: (token: string, displayName: string) =>
     request<ClaimInviteResponse>("POST", `/invites/${token}/claim`, {
       body: { displayName },

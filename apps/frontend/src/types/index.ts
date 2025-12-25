@@ -108,6 +108,11 @@ export interface ClaimInviteResponse {
   card: Card;
 }
 
+export interface InviteInfoResponse {
+  gameId: number;
+  gameStatus: GameStatus;
+}
+
 export interface ClaimBingoResponse {
   success: boolean;
   winner: Winner;

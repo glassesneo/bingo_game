@@ -25,3 +25,8 @@ export class ClaimInviteResponseDto {
   session!: PlayerSessionDto;
   card!: CardResponseDto;
 }
+
+export class InviteInfoResponseDto {
+  gameId!: number;
+  gameStatus!: string;
+}

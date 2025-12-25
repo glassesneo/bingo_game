@@ -28,12 +28,12 @@ export function DrawnHistory({
       <div className="text-sm font-semibold text-base-content/70">
         最近の番号（{drawnNumbers.length}個）
       </div>
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-wrap gap-3 justify-center">
         {sortedNumbers.map((drawn, index) => (
           <NumberBall
             key={drawn.number}
             number={drawn.number}
-            size="sm"
+            size="history"
             isNew={index === 0}
           />
         ))}
