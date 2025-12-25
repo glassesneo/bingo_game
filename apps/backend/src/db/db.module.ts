@@ -20,7 +20,7 @@ import { User } from "../entities/user.entity";
         type: "better-sqlite3",
         database: config.get<string>("DATABASE_PATH") ?? "dev.db",
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: true,
         logging: config.get<string>("DB_LOGGING") === "true",
       }),
     }),
