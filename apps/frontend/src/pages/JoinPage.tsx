@@ -10,6 +10,7 @@ export function JoinPage() {
 
   const [displayName, setDisplayName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [session, setSession] = useLocalStorage<StoredSession | null>(
@@ -17,13 +18,26 @@ export function JoinPage() {
     null,
   );
 
-  // Check for existing session on mount
+  // Check if existing session is valid for this game
   useEffect(() => {
-    if (session) {
-      // If we have a session, redirect to player page
-      navigate(`/play/${session.gameId}`, { replace: true });
+    if (!session) {
+      setIsCheckingSession(false);
+      return;
     }
-  }, [session, navigate]);
+
+    // Try to load card with existing session to verify it's still valid
+    api
+      .getMyCard()
+      .then(() => {
+        // Session is valid, redirect to player page
+        navigate(`/play/${session.gameId}`, { replace: true });
+      })
+      .catch(() => {
+        // Session is invalid (card not found, etc.), clear it
+        setSession(null);
+        setIsCheckingSession(false);
+      });
+  }, [session, setSession, navigate]);
 
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,13 +79,19 @@ export function JoinPage() {
     );
   }
 
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <span className="loading loading-spinner loading-lg" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-base-100">
       <div className="card w-full max-w-md bg-base-200 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title text-2xl justify-center">
-            BINGOに参加
-          </h2>
+          <h2 className="card-title text-2xl justify-center">BINGOに参加</h2>
 
           <form onSubmit={handleJoin} className="space-y-4 mt-4">
             <div className="form-control">
