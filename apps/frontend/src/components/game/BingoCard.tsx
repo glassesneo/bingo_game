@@ -1,6 +1,10 @@
 import { useMemo, useRef } from "react";
 import type { CardCell } from "../../types";
-import { getMarkedCells, getWinningPositions } from "../../utils/bingo";
+import {
+  getMarkedCells,
+  getWinningPositions,
+  isFreeSpace,
+} from "../../utils/bingo";
 import { BingoCell } from "./BingoCell";
 
 interface BingoCardProps {
@@ -78,6 +82,7 @@ export function BingoCard({
             isMarked={markedCellIds.has(cell.id)}
             isWinning={winningPositions.has(`${cell.row},${cell.col}`)}
             isNewlyMarked={newlyMarkedIds.has(cell.id)}
+            isFreeSpace={isFreeSpace(cell.row, cell.col)}
           />
         ))}
       </div>

@@ -89,7 +89,9 @@ export function PlayerPage() {
       await api.claimBingo(gameId);
       setHasClaimedWin(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to claim bingo");
+      setError(
+        err instanceof Error ? err.message : "BINGOの申告に失敗しました",
+      );
     } finally {
       setIsClaiming(false);
     }
@@ -104,7 +106,7 @@ export function PlayerPage() {
       await api.notifyReach(gameId);
       setHasNotifiedReach(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to notify reach");
+      setError(err instanceof Error ? err.message : "リーチ通知に失敗しました");
     } finally {
       setIsNotifyingReach(false);
     }
@@ -201,7 +203,9 @@ export function PlayerPage() {
         socketService.joinGame(gameId, session.token);
       } catch (err) {
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Failed to load game");
+          setError(
+            err instanceof Error ? err.message : "ゲームを読み込めませんでした",
+          );
           setIsLoading(false);
         }
       }
@@ -245,7 +249,7 @@ export function PlayerPage() {
             className="btn btn-sm"
             type="button"
           >
-            Go Home
+            ホームへ
           </button>
         </div>
       </div>
@@ -264,7 +268,7 @@ export function PlayerPage() {
         <div className="text-center">
           <h1 className="text-3xl font-bold text-primary">BINGO</h1>
           <p className="text-sm text-base-content/60">
-            Playing as {session.displayName}
+            {session.displayName}として参加中
           </p>
         </div>
 
@@ -272,14 +276,14 @@ export function PlayerPage() {
         <div className="flex justify-center">
           {gameStatus === "waiting" && (
             <div className="badge badge-warning badge-lg pulse-waiting">
-              Waiting for host to start...
+              ホストの開始待ち...
             </div>
           )}
           {gameStatus === "running" && (
-            <div className="badge badge-success badge-lg">Game in progress</div>
+            <div className="badge badge-success badge-lg">ゲーム進行中</div>
           )}
           {gameStatus === "ended" && (
-            <div className="badge badge-neutral badge-lg">Game ended</div>
+            <div className="badge badge-neutral badge-lg">ゲーム終了</div>
           )}
         </div>
 
@@ -290,14 +294,14 @@ export function PlayerPage() {
             className="btn btn-outline btn-sm"
             type="button"
           >
-            Leave Game
+            ゲームを退出
           </button>
         </div>
 
         {/* Current Number Display */}
         {latestDraw && gameStatus === "running" && (
           <div className="flex flex-col items-center gap-2">
-            <span className="text-sm text-base-content/60">Current Number</span>
+            <span className="text-sm text-base-content/60">現在の番号</span>
             <NumberBall
               number={latestDraw.number}
               size="lg"
@@ -309,7 +313,7 @@ export function PlayerPage() {
         {/* Winner announcement */}
         {isWinner && (
           <div className="alert alert-success winner-announcement">
-            <span className="text-lg font-bold">YOU WON!</span>
+            <span className="text-lg font-bold">勝ちました！</span>
           </div>
         )}
 
@@ -346,12 +350,12 @@ export function PlayerPage() {
               {isNotifyingReach ? (
                 <>
                   <span className="loading loading-spinner" />
-                  Notifying...
+                  通知中...
                 </>
               ) : reachResult.hasReach && !winResult.hasWon ? (
-                "REACH!"
+                "リーチ！"
               ) : (
-                "REACH"
+                "リーチ"
               )}
             </button>
           )}
@@ -369,7 +373,7 @@ export function PlayerPage() {
             {isClaiming ? (
               <>
                 <span className="loading loading-spinner" />
-                Claiming...
+                申告中...
               </>
             ) : winResult.hasWon ? (
               "BINGO!"
@@ -383,7 +387,7 @@ export function PlayerPage() {
         {reaches.length > 0 && (
           <div className="card bg-base-200">
             <div className="card-body p-4">
-              <h3 className="font-bold text-center">Reach Notified</h3>
+              <h3 className="font-bold text-center">リーチ</h3>
               <ul className="space-y-1">
                 {reaches.map((reach) => (
                   <li
@@ -395,7 +399,7 @@ export function PlayerPage() {
                     }`}
                   >
                     {reach.displayName}
-                    {reach.userId === session.userId && " (You)"}
+                    {reach.userId === session.userId && "（あなた）"}
                   </li>
                 ))}
               </ul>
@@ -407,7 +411,7 @@ export function PlayerPage() {
         {winners.length > 0 && (
           <div className="card bg-base-200">
             <div className="card-body p-4">
-              <h3 className="font-bold text-center">Winners</h3>
+              <h3 className="font-bold text-center">勝者</h3>
               <ul className="space-y-1">
                 {winners.map((winner) => (
                   <li
@@ -419,7 +423,7 @@ export function PlayerPage() {
                     }`}
                   >
                     {winner.displayName}
-                    {winner.userId === session.userId && " (You)"}
+                    {winner.userId === session.userId && "（あなた）"}
                   </li>
                 ))}
               </ul>

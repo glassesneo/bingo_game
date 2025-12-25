@@ -30,7 +30,7 @@ export function QRCodeDisplay({ url, size = 200 }: QRCodeDisplayProps) {
           onClick={copyToClipboard}
           className="btn btn-sm btn-ghost"
           type="button"
-          title="Copy URL"
+          title="URLをコピー"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -39,7 +39,7 @@ export function QRCodeDisplay({ url, size = 200 }: QRCodeDisplayProps) {
             viewBox="0 0 24 24"
             stroke="currentColor"
           >
-            <title>Copy URL</title>
+            <title>URLをコピー</title>
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -49,7 +49,7 @@ export function QRCodeDisplay({ url, size = 200 }: QRCodeDisplayProps) {
           </svg>
         </button>
       </div>
-      <p className="text-sm text-base-content/60">Scan to join the game</p>
+      <p className="text-sm text-base-content/60">スキャンして参加</p>
     </div>
   );
 }

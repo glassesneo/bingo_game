@@ -18,7 +18,7 @@ export function DrawnHistory({
   if (sortedNumbers.length === 0) {
     return (
       <div className="text-center text-base-content/50 py-4">
-        No numbers drawn yet
+        まだ番号が出ていません
       </div>
     );
   }
@@ -26,7 +26,7 @@ export function DrawnHistory({
   return (
     <div className="space-y-2">
       <div className="text-sm font-semibold text-base-content/70">
-        Recent Numbers ({drawnNumbers.length} drawn)
+        最近の番号（{drawnNumbers.length}個）
       </div>
       <div className="flex flex-wrap gap-2 justify-center">
         {sortedNumbers.map((drawn, index) => (
@@ -40,7 +40,7 @@ export function DrawnHistory({
       </div>
       {drawnNumbers.length > maxDisplay && (
         <div className="text-xs text-center text-base-content/50">
-          +{drawnNumbers.length - maxDisplay} more
+          ほか{drawnNumbers.length - maxDisplay}個
         </div>
       )}
     </div>

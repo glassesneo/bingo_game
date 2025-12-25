@@ -13,13 +13,15 @@ export function HomePage() {
 
     try {
       // Create a server first, then a game
-      const server = await api.createServer("Bingo Room");
+      const server = await api.createServer("BINGOルーム");
       const game = await api.createGame(server.id);
 
       // Navigate to host page with hostToken
       navigate(`/host/${game.hostToken}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create room");
+      setError(
+        err instanceof Error ? err.message : "ルームを作成できませんでした",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -30,7 +32,7 @@ export function HomePage() {
       <div className="text-center space-y-8">
         <h1 className="text-5xl sm:text-6xl font-bold text-primary">BINGO</h1>
         <p className="text-lg text-base-content/70 max-w-md">
-          Create a room and invite your friends to play!
+          ルームを作って友だちを招待しよう！
         </p>
 
         <button
@@ -42,10 +44,10 @@ export function HomePage() {
           {isLoading ? (
             <>
               <span className="loading loading-spinner" />
-              Creating...
+              作成中...
             </>
           ) : (
-            "Create Room"
+            "ルームを作成"
           )}
         </button>
 

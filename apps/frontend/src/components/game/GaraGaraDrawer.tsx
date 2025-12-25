@@ -381,7 +381,7 @@ function ResultDisplay({ number }: { number: number }) {
           anchorY="middle"
           renderOrder={11}
         >
-          BINGO NUMBER!
+          BINGOナンバー！
         </Text>
       </Billboard>
     </group>
@@ -404,7 +404,7 @@ export function GaraGaraDrawer({
   history,
 }: GaraGaraDrawerProps) {
   const [showResultDisplay, setShowResultDisplay] = useState(false);
-  const [message, setMessage] = useState("READY");
+  const [message, setMessage] = useState("準備OK");
   const [displayedNumber, setDisplayedNumber] = useState<number | null>(null);
 
   // Update message when spinning starts
@@ -412,7 +412,7 @@ export function GaraGaraDrawer({
     if (isSpinning) {
       setDisplayedNumber(null);
       setShowResultDisplay(false);
-      setMessage("SPINNING...");
+      setMessage("回転中...");
     }
   }, [isSpinning]);
 
@@ -420,7 +420,7 @@ export function GaraGaraDrawer({
   useEffect(() => {
     if (drawnNumber !== null) {
       setDisplayedNumber(drawnNumber);
-      setMessage(`Result: ${drawnNumber}!`);
+      setMessage(`結果: ${drawnNumber}!`);
 
       const timer = setTimeout(() => {
         setShowResultDisplay(true);
@@ -489,7 +489,7 @@ export function GaraGaraDrawer({
             margin: 0,
           }}
         >
-          Remaining: {remainingNumbers} / {MAX_NUMBER}
+          残り: {remainingNumbers} / {MAX_NUMBER}
         </h2>
       </div>
 

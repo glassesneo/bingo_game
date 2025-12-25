@@ -62,7 +62,9 @@ export function HostPage() {
       await api.startGame(gameId, hostToken);
       setGameStatus("running");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to start game");
+      setError(
+        err instanceof Error ? err.message : "ゲームを開始できませんでした",
+      );
     } finally {
       setIsStarting(false);
     }
@@ -82,7 +84,7 @@ export function HostPage() {
       // Clear the "new" indicator after animation
       setTimeout(() => setLastDrawnNumber(null), 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to draw number");
+      setError(err instanceof Error ? err.message : "番号を引けませんでした");
     } finally {
       setIsDrawing(false);
     }
@@ -99,7 +101,9 @@ export function HostPage() {
       await api.endGame(gameId, hostToken);
       setGameStatus("ended");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to end game");
+      setError(
+        err instanceof Error ? err.message : "ゲームを終了できませんでした",
+      );
     } finally {
       setIsEnding(false);
     }
@@ -127,7 +131,7 @@ export function HostPage() {
       // Clear the "new" indicator after animation
       setTimeout(() => setLastDrawnNumber(null), 500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to draw number");
+      setError(err instanceof Error ? err.message : "番号を引けませんでした");
     }
   }, [gameId, hostToken]);
 
@@ -215,7 +219,9 @@ export function HostPage() {
       } catch (err) {
         if (mounted) {
           setError(
-            err instanceof Error ? err.message : "Failed to load game data",
+            err instanceof Error
+              ? err.message
+              : "ゲーム情報の読み込みに失敗しました",
           );
           setIsLoading(false);
         }
@@ -265,7 +271,7 @@ export function HostPage() {
             className="btn btn-sm"
             type="button"
           >
-            Go Home
+            ホームへ
           </button>
         </div>
       </div>
@@ -298,7 +304,7 @@ export function HostPage() {
         <div className="flex-1" />
         <div className="text-center">
           <h1 className="text-4xl font-bold text-primary">BINGO</h1>
-          <p className="text-sm text-base-content/60">Host View</p>
+          <p className="text-sm text-base-content/60">ホスト画面</p>
         </div>
         <div className="flex-1 flex justify-end">
           {gameStatus === "running" && (
@@ -311,10 +317,10 @@ export function HostPage() {
               {isEnding ? (
                 <>
                   <span className="loading loading-spinner" />
-                  Ending...
+                  終了中...
                 </>
               ) : (
-                "End Game"
+                "ゲームを終了"
               )}
             </button>
           )}
@@ -330,7 +336,7 @@ export function HostPage() {
             className="btn btn-sm btn-ghost"
             type="button"
           >
-            Dismiss
+            閉じる
           </button>
         </div>
       )}
@@ -344,29 +350,18 @@ export function HostPage() {
               {joinUrl && (
                 <div className="card bg-base-200">
                   <div className="card-body items-center">
-                    <h2 className="card-title">Invite Players</h2>
+                    <h2 className="card-title">参加者を招待</h2>
                     <QRCodeDisplay url={joinUrl} size={180} />
                   </div>
                 </div>
               )}
 
               {/* Game Stats */}
-              <div className="stats stats-vertical lg:stats-horizontal shadow w-full">
+              <div className="stats shadow w-full">
                 <div className="stat">
-                  <div className="stat-title">Players</div>
+                  <div className="stat-title">参加者</div>
                   <div className="stat-value text-primary">
                     {participantCount}
-                  </div>
-                </div>
-                <div className="stat">
-                  <div className="stat-title">Drawn</div>
-                  <div className="stat-value">{drawnNumbers.length}</div>
-                  <div className="stat-desc">{remainingNumbers} remaining</div>
-                </div>
-                <div className="stat">
-                  <div className="stat-title">Winners</div>
-                  <div className="stat-value text-success">
-                    {winners.length}
                   </div>
                 </div>
               </div>
@@ -375,29 +370,27 @@ export function HostPage() {
             {/* Right Column - Controls */}
             <div className="space-y-6">
               <div className="flex justify-center">
-                <div className="badge badge-warning badge-lg">
-                  Waiting to start
-                </div>
+                <div className="badge badge-warning badge-lg">開始待ち</div>
               </div>
 
               {/* Drawer Mode Selector */}
               <div className="card bg-base-200">
                 <div className="card-body">
-                  <h3 className="card-title text-sm">Drawing Mode</h3>
+                  <h3 className="card-title text-sm">抽選モード</h3>
                   <div className="join w-full">
                     <button
                       type="button"
                       className={`join-item btn flex-1 ${drawerMode === "classic" ? "btn-primary" : "btn-ghost"}`}
                       onClick={() => setDrawerMode("classic")}
                     >
-                      Classic
+                      クラシック
                     </button>
                     <button
                       type="button"
                       className={`join-item btn flex-1 ${drawerMode === "garagara" ? "btn-primary" : "btn-ghost"}`}
                       onClick={() => setDrawerMode("garagara")}
                     >
-                      GaraGara 3D
+                      ガラガラ3D
                     </button>
                   </div>
                 </div>
@@ -413,7 +406,7 @@ export function HostPage() {
                     className="checkbox checkbox-sm"
                   />
                   <span className="label-text">
-                    Debug Mode (start with 0 players)
+                    デバッグモード（0人でも開始）
                   </span>
                 </label>
               </div>
@@ -427,10 +420,10 @@ export function HostPage() {
                 {isStarting ? (
                   <>
                     <span className="loading loading-spinner" />
-                    Starting...
+                    開始中...
                   </>
                 ) : (
-                  "Start Game"
+                  "ゲーム開始"
                 )}
               </button>
             </div>
@@ -452,7 +445,7 @@ export function HostPage() {
                     {latestDraw ? (
                       <>
                         <span className="text-2xl font-semibold text-base-content/60 mb-8">
-                          Current Number
+                          現在の番号
                         </span>
                         <NumberBall
                           number={latestDraw.number}
@@ -461,14 +454,14 @@ export function HostPage() {
                         />
                         <div className="mt-8">
                           <p className="text-xl text-base-content/60">
-                            {drawnNumbers.length} of 75 drawn
+                            75個中{drawnNumbers.length}個済み
                           </p>
                         </div>
                       </>
                     ) : (
                       <div className="text-center">
                         <p className="text-2xl text-base-content/60">
-                          Press "Draw Number" to begin
+                          「番号を引く」を押して開始
                         </p>
                       </div>
                     )}
@@ -505,12 +498,12 @@ export function HostPage() {
               {isDrawing || isGaragaraSpinning ? (
                 <>
                   <span className="loading loading-spinner" />
-                  Drawing...
+                  抽選中...
                 </>
               ) : remainingNumbers === 0 ? (
-                "All Numbers Drawn"
+                "すべて引きました"
               ) : (
-                "Draw Number"
+                "番号を引く"
               )}
             </button>
           </div>
@@ -524,7 +517,7 @@ export function HostPage() {
                   <div className="badge badge-primary badge-lg">
                     {drawnNumbers.length}
                   </div>
-                  <h3 className="font-bold text-xl">Number History</h3>
+                  <h3 className="font-bold text-xl">番号履歴</h3>
                 </div>
                 <DrawnHistory drawnNumbers={drawnNumbers} maxDisplay={75} />
               </div>
@@ -538,7 +531,7 @@ export function HostPage() {
                     <div className="badge badge-warning badge-lg">
                       {reaches.length}
                     </div>
-                    <h3 className="font-bold text-xl">Reach Notified</h3>
+                    <h3 className="font-bold text-xl">リーチ</h3>
                   </div>
                   <div className="mt-4">
                     <ul className="space-y-2 max-h-32 overflow-y-auto">
@@ -567,15 +560,15 @@ export function HostPage() {
                   <div className="badge badge-success badge-lg">
                     {winners.length}
                   </div>
-                  <h3 className="font-bold text-xl flex-1">Winners</h3>
+                  <h3 className="font-bold text-xl flex-1">勝者</h3>
                   <svg
                     className={`w-5 h-5 transition-transform ${isWinnersOpen ? "rotate-180" : ""}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                    aria-label="Toggle winners"
+                    aria-label="勝者を開閉"
                   >
-                    <title>Toggle winners</title>
+                    <title>勝者を開閉</title>
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -602,7 +595,7 @@ export function HostPage() {
                       </ul>
                     ) : (
                       <p className="text-center text-base-content/50 py-4">
-                        No winners yet
+                        --
                       </p>
                     )}
                   </div>
@@ -620,16 +613,16 @@ export function HostPage() {
                     type="button"
                   >
                     <h3 className="font-semibold text-base flex-1">
-                      Invite Players
+                      参加者を招待
                     </h3>
                     <svg
                       className={`w-5 h-5 transition-transform ${isQRCodeOpen ? "rotate-180" : ""}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
-                      aria-label="Toggle QR code"
+                      aria-label="QRコードを開閉"
                     >
-                      <title>Toggle QR code</title>
+                      <title>QRコードを開閉</title>
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -654,22 +647,22 @@ export function HostPage() {
       {gameStatus === "ended" && (
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col items-center gap-6">
-            <div className="badge badge-neutral badge-lg">Game ended</div>
+            <div className="badge badge-neutral badge-lg">ゲーム終了</div>
 
             {/* Final Stats */}
             <div className="stats stats-vertical lg:stats-horizontal shadow">
               <div className="stat">
-                <div className="stat-title">Total Players</div>
+                <div className="stat-title">参加人数</div>
                 <div className="stat-value text-primary">
                   {participantCount}
                 </div>
               </div>
               <div className="stat">
-                <div className="stat-title">Numbers Drawn</div>
+                <div className="stat-title">出た番号数</div>
                 <div className="stat-value">{drawnNumbers.length}</div>
               </div>
               <div className="stat">
-                <div className="stat-title">Winners</div>
+                <div className="stat-title">勝者</div>
                 <div className="stat-value text-success">{winners.length}</div>
               </div>
             </div>
@@ -679,7 +672,7 @@ export function HostPage() {
               <div className="card bg-base-200 w-full max-w-md">
                 <div className="card-body">
                   <h3 className="font-bold text-center text-success text-xl mb-4">
-                    🏆 Winners 🏆
+                    🏆 勝者 🏆
                   </h3>
                   <ul className="space-y-2">
                     {winners.map((winner, index) => (
@@ -709,7 +702,7 @@ export function HostPage() {
               className="btn btn-primary btn-lg mt-4"
               type="button"
             >
-              Create New Game
+              新しいゲームを作成
             </button>
           </div>
         </div>

@@ -29,7 +29,7 @@ export function JoinPage() {
     e.preventDefault();
 
     if (!inviteToken || !displayName.trim()) {
-      setError("Please enter your name");
+      setError("名前を入力してください");
       return;
     }
 
@@ -51,7 +51,7 @@ export function JoinPage() {
       // Navigate to player page
       navigate(`/play/${response.session.gameId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to join game");
+      setError(err instanceof Error ? err.message : "参加できませんでした");
     } finally {
       setIsLoading(false);
     }
@@ -60,7 +60,7 @@ export function JoinPage() {
   if (!inviteToken) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="alert alert-error">Invalid invite link</div>
+        <div className="alert alert-error">招待リンクが無効です</div>
       </div>
     );
   }
@@ -70,18 +70,18 @@ export function JoinPage() {
       <div className="card w-full max-w-md bg-base-200 shadow-xl">
         <div className="card-body">
           <h2 className="card-title text-2xl justify-center">
-            Join Bingo Game
+            BINGOに参加
           </h2>
 
           <form onSubmit={handleJoin} className="space-y-4 mt-4">
             <div className="form-control">
               <label className="label" htmlFor="displayName">
-                <span className="label-text">Your Name</span>
+                <span className="label-text">名前</span>
               </label>
               <input
                 id="displayName"
                 type="text"
-                placeholder="Enter your name"
+                placeholder="名前を入力"
                 className="input input-bordered w-full"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
@@ -98,10 +98,10 @@ export function JoinPage() {
               {isLoading ? (
                 <>
                   <span className="loading loading-spinner" />
-                  Joining...
+                  参加中...
                 </>
               ) : (
-                "Join Game"
+                "参加する"
               )}
             </button>
           </form>

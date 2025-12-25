@@ -429,6 +429,7 @@ export class GamesService {
 
   /**
    * Validate bingo pattern
+   * Center cell (row=2, col=2) is FREE space and always considered marked
    */
   private validateBingo(
     cells: { row: number; col: number; number: number }[],
@@ -438,6 +439,9 @@ export class GamesService {
     const marked: boolean[][] = Array.from({ length: 5 }, () =>
       Array(5).fill(false),
     );
+
+    // Center cell is always marked (FREE space)
+    marked[2][2] = true;
 
     for (const cell of cells) {
       if (drawnNumbers.has(cell.number)) {
@@ -464,6 +468,7 @@ export class GamesService {
 
   /**
    * Check if player is one number away from winning (reach)
+   * Center cell (row=2, col=2) is FREE space and always considered marked
    */
   private validateReach(
     cells: { row: number; col: number; number: number }[],
@@ -473,6 +478,9 @@ export class GamesService {
     const marked: boolean[][] = Array.from({ length: 5 }, () =>
       Array(5).fill(false),
     );
+
+    // Center cell is always marked (FREE space)
+    marked[2][2] = true;
 
     for (const cell of cells) {
       if (drawnNumbers.has(cell.number)) {

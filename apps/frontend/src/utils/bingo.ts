@@ -105,24 +105,15 @@ export interface ReachResult {
  * Check if the player has won with the current drawn numbers
  * @param cells - The player's card cells
  * @param drawnNumbers - Array of numbers that have been drawn
- * @param freeSpacePosition - Optional position of FREE space (for future support)
  * @returns WinResult with hasWon flag and the winning pattern if any
  */
-export function checkWin(
-  cells: CardCell[],
-  drawnNumbers: number[],
-  freeSpacePosition?: [number, number],
-): WinResult {
+export function checkWin(cells: CardCell[], drawnNumbers: number[]): WinResult {
   const drawnSet = new Set(drawnNumbers);
 
   for (const pattern of WINNING_PATTERNS) {
     const isWinning = pattern.every(([row, col]) => {
       // FREE space is always marked
-      if (
-        freeSpacePosition &&
-        row === freeSpacePosition[0] &&
-        col === freeSpacePosition[1]
-      ) {
+      if (isFreeSpace(row, col)) {
         return true;
       }
       const cell = cells.find((c) => c.row === row && c.col === col);
@@ -141,13 +132,11 @@ export function checkWin(
  * Check if the player is one number away from winning (reach)
  * @param cells - The player's card cells
  * @param drawnNumbers - Array of numbers that have been drawn
- * @param freeSpacePosition - Optional position of FREE space (for future support)
  * @returns ReachResult with hasReach flag and the reach pattern if any
  */
 export function checkReach(
   cells: CardCell[],
   drawnNumbers: number[],
-  freeSpacePosition?: [number, number],
 ): ReachResult {
   const drawnSet = new Set(drawnNumbers);
 
@@ -155,11 +144,7 @@ export function checkReach(
     let markedCount = 0;
     for (const [row, col] of pattern) {
       // FREE space is always marked
-      if (
-        freeSpacePosition &&
-        row === freeSpacePosition[0] &&
-        col === freeSpacePosition[1]
-      ) {
+      if (isFreeSpace(row, col)) {
         markedCount++;
         continue;
       }
@@ -178,8 +163,19 @@ export function checkReach(
   return { hasReach: false, reachPattern: null };
 }
 
+// FREE space position (center of the board)
+export const FREE_SPACE_ROW = 2;
+export const FREE_SPACE_COL = 2;
+
 /**
- * Get the set of cell IDs that are marked (number has been drawn)
+ * Check if a cell is the FREE space
+ */
+export function isFreeSpace(row: number, col: number): boolean {
+  return row === FREE_SPACE_ROW && col === FREE_SPACE_COL;
+}
+
+/**
+ * Get the set of cell IDs that are marked (number has been drawn or FREE space)
  * @param cells - The player's card cells
  * @param drawnNumbers - Array of numbers that have been drawn
  * @returns Set of marked cell IDs
@@ -192,7 +188,10 @@ export function getMarkedCells(
   const markedCellIds = new Set<number>();
 
   for (const cell of cells) {
-    if (drawnSet.has(cell.number)) {
+    // FREE space (number=0 or center position) is always marked
+    if (cell.number === 0 || isFreeSpace(cell.row, cell.col)) {
+      markedCellIds.add(cell.id);
+    } else if (drawnSet.has(cell.number)) {
       markedCellIds.add(cell.id);
     }
   }

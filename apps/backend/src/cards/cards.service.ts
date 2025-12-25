@@ -262,7 +262,7 @@ export class CardsService {
    * Generates 5x5 bingo grid with numbers 1-75
    * B column (col 0): 1-15
    * I column (col 1): 16-30
-   * N column (col 2): 31-45
+   * N column (col 2): 31-45 (center cell is FREE space with number=0)
    * G column (col 3): 46-60
    * O column (col 4): 61-75
    */
@@ -278,14 +278,24 @@ export class CardsService {
 
     for (let col = 0; col < 5; col++) {
       const [min, max] = ranges[col];
-      const numbers = this.getRandomNumbers(min, max, 5);
+      // For center column (N), we only need 4 numbers since center is FREE
+      const count = col === 2 ? 4 : 5;
+      const numbers = this.getRandomNumbers(min, max, count);
 
       for (let row = 0; row < 5; row++) {
         const cell = new CardCell();
         cell.cardId = cardId;
         cell.row = row;
         cell.col = col;
-        cell.number = numbers[row];
+
+        // Center cell (row=2, col=2) is FREE space
+        if (row === 2 && col === 2) {
+          cell.number = 0; // 0 indicates FREE space
+        } else {
+          // Adjust index for N column since we skipped the center
+          const index = col === 2 && row > 2 ? row - 1 : row;
+          cell.number = numbers[index];
+        }
         cells.push(cell);
       }
     }
