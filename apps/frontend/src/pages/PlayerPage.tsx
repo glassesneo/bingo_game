@@ -11,10 +11,11 @@ import type {
   DrawnNumber,
   GameState,
   GameStatus,
+  Reach,
   StoredSession,
   Winner,
 } from "../types";
-import { checkWin } from "../utils/bingo";
+import { checkReach, checkWin } from "../utils/bingo";
 
 export function PlayerPage() {
   const { gameId: gameIdParam } = useParams<{ gameId: string }>();
@@ -31,6 +32,7 @@ export function PlayerPage() {
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
   const [drawnNumbers, setDrawnNumbers] = useState<DrawnNumber[]>([]);
   const [winners, setWinners] = useState<Winner[]>([]);
+  const [reaches, setReaches] = useState<Reach[]>([]);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
 
   // UI state
@@ -38,6 +40,8 @@ export function PlayerPage() {
   const [error, setError] = useState<string | null>(null);
   const [isClaiming, setIsClaiming] = useState(false);
   const [hasClaimedWin, setHasClaimedWin] = useState(false);
+  const [isNotifyingReach, setIsNotifyingReach] = useState(false);
+  const [hasNotifiedReach, setHasNotifiedReach] = useState(false);
 
   // Check if player has won
   const winResult = useMemo(() => {
@@ -46,11 +50,24 @@ export function PlayerPage() {
     return checkWin(card.cells, numbers);
   }, [card, drawnNumbers]);
 
+  // Check if player has reach (one away from winning)
+  const reachResult = useMemo(() => {
+    if (!card) return { hasReach: false, reachPattern: null };
+    const numbers = drawnNumbers.map((d) => d.number);
+    return checkReach(card.cells, numbers);
+  }, [card, drawnNumbers]);
+
   // Check if current player is a winner
   const isWinner = useMemo(() => {
     if (!session) return false;
     return winners.some((w) => w.userId === session.userId);
   }, [winners, session]);
+
+  // Check if current player has notified reach
+  const hasReached = useMemo(() => {
+    if (!session) return false;
+    return reaches.some((r) => r.userId === session.userId);
+  }, [reaches, session]);
 
   // Handle leaving the game (clear session and close window)
   const handleLeaveGame = useCallback(() => {
@@ -77,6 +94,21 @@ export function PlayerPage() {
       setIsClaiming(false);
     }
   }, [gameId, isClaiming, hasClaimedWin]);
+
+  // Handle notifying reach
+  const handleNotifyReach = useCallback(async () => {
+    if (!gameId || isNotifyingReach || hasNotifiedReach) return;
+
+    setIsNotifyingReach(true);
+    try {
+      await api.notifyReach(gameId);
+      setHasNotifiedReach(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to notify reach");
+    } finally {
+      setIsNotifyingReach(false);
+    }
+  }, [gameId, isNotifyingReach, hasNotifiedReach]);
 
   // Validate session and redirect if needed
   useEffect(() => {
@@ -153,6 +185,12 @@ export function PlayerPage() {
           }
         });
 
+        socketService.onReachNotified((data) => {
+          if (mounted) {
+            setReaches((prev) => [...prev, data.reach]);
+          }
+        });
+
         socketService.onGameEnded(() => {
           if (mounted) {
             setGameStatus("ended");
@@ -177,6 +215,7 @@ export function PlayerPage() {
       socketService.offGameStarted();
       socketService.offNumberDrawn();
       socketService.offBingoClaimed();
+      socketService.offReachNotified();
       socketService.offGameEnded();
       if (gameId) {
         socketService.leaveGame(gameId);
@@ -284,6 +323,39 @@ export function PlayerPage() {
           />
         )}
 
+        {/* Reach Button */}
+        {gameStatus === "running" &&
+          !isWinner &&
+          !hasReached &&
+          !hasNotifiedReach && (
+            <button
+              onClick={handleNotifyReach}
+              disabled={
+                !reachResult.hasReach ||
+                isNotifyingReach ||
+                hasNotifiedReach ||
+                winResult.hasWon
+              }
+              className={`btn btn-md w-full ${
+                reachResult.hasReach && !winResult.hasWon
+                  ? "btn-warning"
+                  : "btn-disabled"
+              }`}
+              type="button"
+            >
+              {isNotifyingReach ? (
+                <>
+                  <span className="loading loading-spinner" />
+                  Notifying...
+                </>
+              ) : reachResult.hasReach && !winResult.hasWon ? (
+                "REACH!"
+              ) : (
+                "REACH"
+              )}
+            </button>
+          )}
+
         {/* Bingo Button */}
         {gameStatus === "running" && !isWinner && (
           <button
@@ -305,6 +377,30 @@ export function PlayerPage() {
               "BINGO"
             )}
           </button>
+        )}
+
+        {/* Reach Notifications */}
+        {reaches.length > 0 && (
+          <div className="card bg-base-200">
+            <div className="card-body p-4">
+              <h3 className="font-bold text-center">Reach Notified</h3>
+              <ul className="space-y-1">
+                {reaches.map((reach) => (
+                  <li
+                    key={`${reach.userId}-${reach.reachedAt}`}
+                    className={`text-center ${
+                      reach.userId === session.userId
+                        ? "text-warning font-bold"
+                        : ""
+                    }`}
+                  >
+                    {reach.displayName}
+                    {reach.userId === session.userId && " (You)"}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         )}
 
         {/* Winners List */}

@@ -10,6 +10,7 @@ import type {
   GameState,
   GameStatus,
   HostView,
+  Reach,
   Winner,
 } from "../types";
 
@@ -23,6 +24,7 @@ export function HostPage() {
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
   const [drawnNumbers, setDrawnNumbers] = useState<DrawnNumber[]>([]);
   const [winners, setWinners] = useState<Winner[]>([]);
+  const [reaches, setReaches] = useState<Reach[]>([]);
   const [participantCount, setParticipantCount] = useState(0);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
 
@@ -159,6 +161,12 @@ export function HostPage() {
           }
         });
 
+        socketService.onReachNotified((data) => {
+          if (mounted) {
+            setReaches((prev) => [...prev, data.reach]);
+          }
+        });
+
         socketService.onGameEnded(() => {
           if (mounted) {
             setGameStatus("ended");
@@ -191,6 +199,7 @@ export function HostPage() {
       }
       socketService.offGameState();
       socketService.offBingoClaimed();
+      socketService.offReachNotified();
       socketService.offGameEnded();
       socketService.offPlayerJoined();
       // Leave the game room when unmounting
@@ -439,6 +448,32 @@ export function HostPage() {
                 <DrawnHistory drawnNumbers={drawnNumbers} maxDisplay={75} />
               </div>
             </div>
+
+            {/* Reach Notifications */}
+            {reaches.length > 0 && (
+              <div className="card bg-warning/10 border-2 border-warning/30 shadow-lg">
+                <div className="card-body p-6">
+                  <div className="flex items-center gap-2">
+                    <div className="badge badge-warning badge-lg">
+                      {reaches.length}
+                    </div>
+                    <h3 className="font-bold text-xl">Reach Notified</h3>
+                  </div>
+                  <div className="mt-4">
+                    <ul className="space-y-2 max-h-32 overflow-y-auto">
+                      {reaches.map((reach) => (
+                        <li
+                          key={`${reach.userId}-${reach.reachedAt}`}
+                          className="text-base font-medium"
+                        >
+                          {reach.displayName}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Winners List - HIGHLIGHTED & COLLAPSIBLE */}
             <div className="card bg-success/10 border-2 border-success/30 shadow-xl">

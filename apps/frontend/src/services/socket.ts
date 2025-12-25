@@ -6,6 +6,7 @@ import type {
   GameStartedPayload,
   GameState,
   NumberDrawnPayload,
+  ReachNotifiedPayload,
 } from "../types";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "http://localhost:3000";
@@ -75,6 +76,10 @@ class SocketService {
     this.socket?.on("bingo:claimed", callback);
   }
 
+  onReachNotified(callback: (data: ReachNotifiedPayload) => void): void {
+    this.socket?.on("reach:notified", callback);
+  }
+
   onGameEnded(callback: (data: GameEndedPayload) => void): void {
     this.socket?.on("game:ended", callback);
   }
@@ -104,6 +109,10 @@ class SocketService {
 
   offBingoClaimed(): void {
     this.socket?.off("bingo:claimed");
+  }
+
+  offReachNotified(): void {
+    this.socket?.off("reach:notified");
   }
 
   offGameEnded(): void {

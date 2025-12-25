@@ -34,6 +34,12 @@ export interface Winner {
   claimedAt: Date;
 }
 
+export interface Reach {
+  userId: number;
+  displayName: string;
+  reachedAt: Date;
+}
+
 export interface GameState {
   game: {
     id: number;
@@ -454,6 +460,151 @@ export class GamesService {
     if ([0, 1, 2, 3, 4].every((i) => marked[i][4 - i])) return true;
 
     return false;
+  }
+
+  /**
+   * Check if player is one number away from winning (reach)
+   */
+  private validateReach(
+    cells: { row: number; col: number; number: number }[],
+    drawnNumbers: Set<number>,
+  ): boolean {
+    // Create a 5x5 grid of marked cells
+    const marked: boolean[][] = Array.from({ length: 5 }, () =>
+      Array(5).fill(false),
+    );
+
+    for (const cell of cells) {
+      if (drawnNumbers.has(cell.number)) {
+        marked[cell.row][cell.col] = true;
+      }
+    }
+
+    // Check rows - need exactly 4 marked
+    for (let r = 0; r < 5; r++) {
+      const markedCount = marked[r].filter((m) => m).length;
+      if (markedCount === 4) return true;
+    }
+
+    // Check columns - need exactly 4 marked
+    for (let c = 0; c < 5; c++) {
+      const markedCount = marked.filter((row) => row[c]).length;
+      if (markedCount === 4) return true;
+    }
+
+    // Check main diagonal - need exactly 4 marked
+    const mainDiagCount = [0, 1, 2, 3, 4].filter((i) => marked[i][i]).length;
+    if (mainDiagCount === 4) return true;
+
+    // Check anti-diagonal - need exactly 4 marked
+    const antiDiagCount = [0, 1, 2, 3, 4].filter(
+      (i) => marked[i][4 - i],
+    ).length;
+    if (antiDiagCount === 4) return true;
+
+    return false;
+  }
+
+  /**
+   * Notify reach (player)
+   */
+  async notifyReach(
+    gameId: number,
+    userId: number,
+    cardId: number,
+  ): Promise<Reach> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const game = await queryRunner.manager.findOne(Game, {
+        where: { id: gameId },
+      });
+      if (!game) {
+        throw new NotFoundException(`Game with id ${gameId} not found`);
+      }
+
+      if (game.status !== "running") {
+        throw new BadRequestException(
+          `Cannot notify reach in game status '${game.status}'`,
+        );
+      }
+
+      // Get user's participant record
+      const participant = await queryRunner.manager.findOne(GameParticipant, {
+        where: { gameId, userId },
+      });
+      if (!participant) {
+        throw new NotFoundException("User is not a participant in this game");
+      }
+
+      // Check if already notified reach
+      if (participant.reachedAt !== null) {
+        throw new ConflictException("You have already notified reach");
+      }
+
+      // Get card
+      const card = await queryRunner.manager.findOne(Card, {
+        where: { id: cardId, gameId, userId },
+        relations: ["cells"],
+      });
+      if (!card) {
+        throw new NotFoundException(
+          "Card not found or does not belong to user/game",
+        );
+      }
+
+      // Get drawn numbers
+      const draws = await queryRunner.manager.find(GameDraw, {
+        where: { gameId },
+        select: ["number"],
+      });
+      const drawnSet = new Set(draws.map((d) => d.number));
+
+      // Validate reach (one away from bingo)
+      const hasReach = this.validateReach(card.cells, drawnSet);
+      if (!hasReach) {
+        throw new BadRequestException("No valid reach pattern found");
+      }
+
+      // Record the reach atomically
+      const now = new Date();
+      const updateResult = await queryRunner.manager.update(
+        GameParticipant,
+        { id: participant.id, reachedAt: IsNull() },
+        { reachedAt: now },
+      );
+
+      if (updateResult.affected === 0) {
+        throw new ConflictException("You have already notified reach");
+      }
+
+      await queryRunner.commitTransaction();
+
+      const reach: Reach = {
+        userId,
+        displayName: participant.displayName,
+        reachedAt: now,
+      };
+
+      // Broadcast reach notification
+      this.gateway.broadcastToGame(gameId, "reach:notified", {
+        gameId,
+        reach: {
+          userId: reach.userId,
+          displayName: reach.displayName,
+          reachedAt: reach.reachedAt.toISOString(),
+        },
+      });
+
+      return reach;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**

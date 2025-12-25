@@ -52,4 +52,8 @@ export class GameParticipant {
   /** When this participant won (null if not a winner) */
   @Column({ name: "won_at", type: "datetime", nullable: true })
   wonAt!: Date | null;
+
+  /** When this participant notified reach (null if not reached) */
+  @Column({ name: "reached_at", type: "datetime", nullable: true })
+  reachedAt!: Date | null;
 }

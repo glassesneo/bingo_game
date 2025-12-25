@@ -7,6 +7,7 @@ import type {
   EndGameResponse,
   GameState,
   HostView,
+  NotifyReachResponse,
   ServerResponse,
   StartGameResponse,
 } from "../types";
@@ -92,6 +93,11 @@ export const api = {
 
   claimBingo: (gameId: number) =>
     request<ClaimBingoResponse>("POST", `/games/${gameId}/bingo`, {
+      useAuth: true,
+    }),
+
+  notifyReach: (gameId: number) =>
+    request<NotifyReachResponse>("POST", `/games/${gameId}/reach`, {
       useAuth: true,
     }),
 };

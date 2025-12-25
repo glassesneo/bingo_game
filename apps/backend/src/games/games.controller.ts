@@ -18,6 +18,7 @@ import {
   EndGameResponseDto,
   GameStateResponseDto,
   HostViewResponseDto,
+  NotifyReachResponseDto,
   StartGameResponseDto,
 } from "./dto/game-response.dto";
 import { GamesService } from "./games.service";
@@ -165,6 +166,28 @@ export class GamesController {
         userId: winner.userId,
         displayName: winner.displayName,
         claimedAt: winner.claimedAt.toISOString(),
+      },
+    };
+  }
+
+  /**
+   * POST /games/:gameId/reach
+   * Notify reach (player only, JWT protected)
+   */
+  @Post("games/:gameId/reach")
+  @UseGuards(JwtAuthGuard)
+  async notifyReach(
+    @Param("gameId", ParseIntPipe) gameId: number,
+    @Req() req: Request & { user: AuthenticatedUser },
+  ): Promise<NotifyReachResponseDto> {
+    const { userId, cardId } = req.user;
+    const reach = await this.gamesService.notifyReach(gameId, userId, cardId);
+    return {
+      success: true,
+      reach: {
+        userId: reach.userId,
+        displayName: reach.displayName,
+        reachedAt: reach.reachedAt.toISOString(),
       },
     };
   }

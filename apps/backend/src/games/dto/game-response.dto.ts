@@ -62,3 +62,14 @@ export class ClaimBingoResponseDto {
   success!: boolean;
   winner!: WinnerDto;
 }
+
+export class ReachDto {
+  userId!: number;
+  displayName!: string;
+  reachedAt!: string;
+}
+
+export class NotifyReachResponseDto {
+  success!: boolean;
+  reach!: ReachDto;
+}

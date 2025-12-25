@@ -96,6 +96,11 @@ export interface WinResult {
   winningPattern: [number, number][] | null;
 }
 
+export interface ReachResult {
+  hasReach: boolean;
+  reachPattern: [number, number][] | null;
+}
+
 /**
  * Check if the player has won with the current drawn numbers
  * @param cells - The player's card cells
@@ -130,6 +135,47 @@ export function checkWin(
   }
 
   return { hasWon: false, winningPattern: null };
+}
+
+/**
+ * Check if the player is one number away from winning (reach)
+ * @param cells - The player's card cells
+ * @param drawnNumbers - Array of numbers that have been drawn
+ * @param freeSpacePosition - Optional position of FREE space (for future support)
+ * @returns ReachResult with hasReach flag and the reach pattern if any
+ */
+export function checkReach(
+  cells: CardCell[],
+  drawnNumbers: number[],
+  freeSpacePosition?: [number, number],
+): ReachResult {
+  const drawnSet = new Set(drawnNumbers);
+
+  for (const pattern of WINNING_PATTERNS) {
+    let markedCount = 0;
+    for (const [row, col] of pattern) {
+      // FREE space is always marked
+      if (
+        freeSpacePosition &&
+        row === freeSpacePosition[0] &&
+        col === freeSpacePosition[1]
+      ) {
+        markedCount++;
+        continue;
+      }
+      const cell = cells.find((c) => c.row === row && c.col === col);
+      if (cell && drawnSet.has(cell.number)) {
+        markedCount++;
+      }
+    }
+
+    // Reach means exactly 4 out of 5 are marked
+    if (markedCount === 4) {
+      return { hasReach: true, reachPattern: pattern };
+    }
+  }
+
+  return { hasReach: false, reachPattern: null };
 }
 
 /**

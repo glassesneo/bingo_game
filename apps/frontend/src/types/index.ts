@@ -41,6 +41,13 @@ export interface Winner {
   claimedAt: string;
 }
 
+// Reach information
+export interface Reach {
+  userId: number;
+  displayName: string;
+  reachedAt: string;
+}
+
 // Full game state
 export interface GameState {
   game: GameSummary;
@@ -106,6 +113,11 @@ export interface ClaimBingoResponse {
   winner: Winner;
 }
 
+export interface NotifyReachResponse {
+  success: boolean;
+  reach: Reach;
+}
+
 export interface EndGameResponse {
   gameId: number;
   status: GameStatus;
@@ -131,6 +143,11 @@ export interface NumberDrawnPayload {
 export interface BingoClaimedPayload {
   gameId: number;
   winner: Winner;
+}
+
+export interface ReachNotifiedPayload {
+  gameId: number;
+  reach: Reach;
 }
 
 export interface GameEndedPayload {
