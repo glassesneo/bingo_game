@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { DrawnHistory } from "../components/game/DrawnHistory";
+import { GaraGaraDrawer } from "../components/game/GaraGaraDrawer";
 import { NumberBall } from "../components/game/NumberBall";
 import { QRCodeDisplay } from "../components/game/QRCodeDisplay";
 import { api } from "../services/api";
@@ -13,6 +14,8 @@ import type {
   Reach,
   Winner,
 } from "../types";
+
+type DrawerMode = "classic" | "garagara";
 
 export function HostPage() {
   const { hostToken } = useParams<{ hostToken: string }>();
@@ -38,6 +41,11 @@ export function HostPage() {
   const [isQRCodeOpen, setIsQRCodeOpen] = useState(true);
   const [isWinnersOpen, setIsWinnersOpen] = useState(true);
   const [debugMode, setDebugMode] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode>("classic");
+  const [isGaragaraSpinning, setIsGaragaraSpinning] = useState(false);
+  const [garagaraDrawnNumber, setGaragaraDrawnNumber] = useState<number | null>(
+    null,
+  );
 
   // Generate join URL - use PUBLIC_URL for QR code (for LAN access)
   const publicUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
@@ -96,6 +104,32 @@ export function HostPage() {
       setIsEnding(false);
     }
   }, [gameId, hostToken, isEnding]);
+
+  // GaraGara spin start handler
+  const handleGaragaraSpinStart = useCallback(() => {
+    setGaragaraDrawnNumber(null); // Reset previous drawn number
+    setIsGaragaraSpinning(true);
+  }, []);
+
+  // GaraGara spin finish handler - called when animation finishes, then calls API
+  const handleGaragaraSpinFinish = useCallback(async () => {
+    setIsGaragaraSpinning(false);
+
+    if (!gameId || !hostToken) return;
+
+    try {
+      // Call the API to get the actual drawn number
+      const response = await api.drawNumber(gameId, hostToken);
+      setDrawnNumbers((prev) => [...prev, response.draw]);
+      setLastDrawnNumber(response.draw.number);
+      // Set the drawn number for GaraGara to display
+      setGaragaraDrawnNumber(response.draw.number);
+      // Clear the "new" indicator after animation
+      setTimeout(() => setLastDrawnNumber(null), 500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to draw number");
+    }
+  }, [gameId, hostToken]);
 
   // Fetch initial host view and set up WebSocket
   useEffect(() => {
@@ -346,6 +380,29 @@ export function HostPage() {
                 </div>
               </div>
 
+              {/* Drawer Mode Selector */}
+              <div className="card bg-base-200">
+                <div className="card-body">
+                  <h3 className="card-title text-sm">Drawing Mode</h3>
+                  <div className="join w-full">
+                    <button
+                      type="button"
+                      className={`join-item btn flex-1 ${drawerMode === "classic" ? "btn-primary" : "btn-ghost"}`}
+                      onClick={() => setDrawerMode("classic")}
+                    >
+                      Classic
+                    </button>
+                    <button
+                      type="button"
+                      className={`join-item btn flex-1 ${drawerMode === "garagara" ? "btn-primary" : "btn-ghost"}`}
+                      onClick={() => setDrawerMode("garagara")}
+                    >
+                      GaraGara 3D
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Debug Mode Toggle */}
               <div className="form-control">
                 <label className="label cursor-pointer justify-center gap-2">
@@ -384,54 +441,78 @@ export function HostPage() {
       {/* RUNNING PHASE LAYOUT */}
       {gameStatus === "running" && (
         <div className="grid grid-cols-2 gap-4 mx-auto max-w-screen-2xl items-start">
-          {/* LEFT SIDE - Current Number + Draw Button */}
-          <div className="bg-base-200 rounded-2xl flex flex-col p-8 h-[calc(100vh-120px)] sticky top-4">
-            <div className="flex-1 flex flex-col items-center justify-center">
-              {latestDraw ? (
-                <>
-                  <span className="text-2xl font-semibold text-base-content/60 mb-8">
-                    Current Number
-                  </span>
-                  <NumberBall
-                    number={latestDraw.number}
-                    size="xl"
-                    isNew={latestDraw.number === lastDrawnNumber}
-                  />
-                  <div className="mt-8">
-                    <p className="text-xl text-base-content/60">
-                      {drawnNumbers.length} of 75 drawn
-                    </p>
+          {/* LEFT SIDE - Current Number or GaraGara */}
+          <div className="flex flex-col gap-4 sticky top-4">
+            {/* Number Display Panel */}
+            <div className="bg-base-200 rounded-2xl flex flex-col h-[calc(100vh-200px)] overflow-hidden">
+              {/* Classic Mode */}
+              {drawerMode === "classic" && (
+                <div className="flex-1 flex flex-col p-8">
+                  <div className="flex-1 flex flex-col items-center justify-center">
+                    {latestDraw ? (
+                      <>
+                        <span className="text-2xl font-semibold text-base-content/60 mb-8">
+                          Current Number
+                        </span>
+                        <NumberBall
+                          number={latestDraw.number}
+                          size="xl"
+                          isNew={latestDraw.number === lastDrawnNumber}
+                        />
+                        <div className="mt-8">
+                          <p className="text-xl text-base-content/60">
+                            {drawnNumbers.length} of 75 drawn
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-2xl text-base-content/60">
+                          Press "Draw Number" to begin
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <p className="text-2xl text-base-content/60">
-                    Press "Draw Number" to begin
-                  </p>
+                </div>
+              )}
+
+              {/* GaraGara 3D Mode */}
+              {drawerMode === "garagara" && (
+                <div className="flex-1">
+                  <GaraGaraDrawer
+                    isSpinning={isGaragaraSpinning}
+                    drawnNumber={garagaraDrawnNumber}
+                    onSpinFinish={handleGaragaraSpinFinish}
+                    history={drawnNumbers.map((d) => d.number)}
+                  />
                 </div>
               )}
             </div>
 
-            {/* Draw Number Button at Bottom */}
-            <div className="mt-8">
-              <button
-                onClick={handleDrawNumber}
-                disabled={isDrawing || remainingNumbers === 0}
-                className="btn btn-primary btn-lg w-full"
-                type="button"
-              >
-                {isDrawing ? (
-                  <>
-                    <span className="loading loading-spinner" />
-                    Drawing...
-                  </>
-                ) : remainingNumbers === 0 ? (
-                  "All Numbers Drawn"
-                ) : (
-                  "Draw Number"
-                )}
-              </button>
-            </div>
+            {/* Unified Draw Button - Below the panel */}
+            <button
+              onClick={
+                drawerMode === "classic"
+                  ? handleDrawNumber
+                  : handleGaragaraSpinStart
+              }
+              disabled={
+                isDrawing || isGaragaraSpinning || remainingNumbers === 0
+              }
+              className="btn btn-primary btn-lg w-full"
+              type="button"
+            >
+              {isDrawing || isGaragaraSpinning ? (
+                <>
+                  <span className="loading loading-spinner" />
+                  Drawing...
+                </>
+              ) : remainingNumbers === 0 ? (
+                "All Numbers Drawn"
+              ) : (
+                "Draw Number"
+              )}
+            </button>
           </div>
 
           {/* RIGHT SIDE - History, Winners, QR Code */}
