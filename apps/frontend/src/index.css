@@ -3,23 +3,40 @@
   themes: light --default, dark;
 }
 
-/* Number draw animation */
+/* Number draw animation - more dramatic */
 @keyframes number-pop {
-  0% { transform: scale(0); opacity: 0; }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0) rotate(-180deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15) rotate(10deg);
+  }
+  80% {
+    transform: scale(0.95) rotate(-5deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
 }
 
 /* Bingo winner animation */
 @keyframes bingo-celebration {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 oklch(var(--p) / 0.7);
+    box-shadow: 0 0 0 0 oklch(var(--su) / 0.7);
   }
   50% {
     transform: scale(1.05);
-    box-shadow: 0 0 0 20px oklch(var(--p) / 0);
+    box-shadow: 0 0 40px 20px oklch(var(--su) / 0);
   }
+}
+
+/* Winner overlay fade in */
+@keyframes overlay-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
 /* Cell mark animation */
@@ -36,11 +53,15 @@
 }
 
 .number-drawn {
-  animation: number-pop 0.3s ease-out;
+  animation: number-pop 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 .winner-announcement {
   animation: bingo-celebration 0.6s ease-in-out 3;
+}
+
+.winner-overlay {
+  animation: overlay-fade-in 0.2s ease-out;
 }
 
 .cell-just-marked {

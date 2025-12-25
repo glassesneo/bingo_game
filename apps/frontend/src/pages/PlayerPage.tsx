@@ -52,11 +52,16 @@ export function PlayerPage() {
     return winners.some((w) => w.userId === session.userId);
   }, [winners, session]);
 
-  // Handle leaving the game (clear session and go home)
+  // Handle leaving the game (clear session and close window)
   const handleLeaveGame = useCallback(() => {
     clearSession();
-    navigate("/", { replace: true });
-  }, [clearSession, navigate]);
+    // Try to close the window (works if opened via window.open)
+    window.close();
+    // If window didn't close (opened by user), redirect to blank page after a delay
+    setTimeout(() => {
+      window.location.href = "about:blank";
+    }, 100);
+  }, [clearSession]);
 
   // Handle claiming bingo
   const handleClaimBingo = useCallback(async () => {
@@ -239,21 +244,16 @@ export function PlayerPage() {
           )}
         </div>
 
-        {/* Leave Game Button - shown when game ended OR player won */}
-        {(gameStatus === "ended" || isWinner) && (
-          <div className="flex flex-col items-center gap-4">
-            {gameStatus === "ended" && (
-              <p className="text-base-content/60">Thanks for playing!</p>
-            )}
-            <button
-              onClick={handleLeaveGame}
-              className="btn btn-primary"
-              type="button"
-            >
-              Leave Game
-            </button>
-          </div>
-        )}
+        {/* Leave Game Button - always shown */}
+        <div className="flex justify-center">
+          <button
+            onClick={handleLeaveGame}
+            className="btn btn-outline btn-sm"
+            type="button"
+          >
+            Leave Game
+          </button>
+        </div>
 
         {/* Current Number Display */}
         {latestDraw && gameStatus === "running" && (
