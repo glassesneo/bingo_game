@@ -315,12 +315,23 @@ export function PlayerPage() {
   return (
     <div className="min-h-screen bg-base-100 p-4">
       <div className="max-w-lg mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-primary">BINGO</h1>
-          <p className="text-sm text-base-content/60">
-            {session.displayName}として参加中
-          </p>
+        {/* Header with leave button */}
+        <div className="flex items-start justify-between">
+          <div className="w-16" /> {/* Spacer for centering */}
+          <div className="text-center flex-1">
+            <h1 className="text-3xl font-bold text-primary">BINGO</h1>
+            <p className="text-sm text-base-content/60">
+              {session.displayName}として参加中
+            </p>
+          </div>
+          {/* Leave button */}
+          <button
+            type="button"
+            onClick={handleLeaveGame}
+            className="btn btn-ghost btn-sm text-base-content/60"
+          >
+            退出
+          </button>
         </div>
 
         {/* Game Status */}
@@ -336,17 +347,6 @@ export function PlayerPage() {
           {gameStatus === "ended" && (
             <div className="badge badge-neutral badge-lg">ゲーム終了</div>
           )}
-        </div>
-
-        {/* Leave Game Button - always shown */}
-        <div className="flex justify-center">
-          <button
-            onClick={handleLeaveGame}
-            className="btn btn-outline btn-sm"
-            type="button"
-          >
-            ゲームを退出
-          </button>
         </div>
 
         {/* Current Number Display */}
