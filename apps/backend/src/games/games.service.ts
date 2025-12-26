@@ -856,4 +856,47 @@ export class GamesService {
 
     return { result, remainingAwards };
   }
+
+  /**
+   * Record roulette result from host (simplified version for WebSocket flow)
+   * Called when the host's roulette animation completes and determines the award.
+   */
+  async recordRouletteResult(
+    gameId: number,
+    userId: number,
+    award: number,
+  ): Promise<RouletteResult> {
+    const game = await this.gameRepo.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game with id ${gameId} not found`);
+    }
+
+    // Get participant display name
+    const participant = await this.participantRepo.findOne({
+      where: { gameId, userId },
+    });
+    if (!participant) {
+      throw new NotFoundException("User is not a participant in this game");
+    }
+
+    // Initialize claimed map if needed
+    if (!this.claimedAwards.has(gameId)) {
+      this.claimedAwards.set(gameId, new Map());
+    }
+    const awardsMap = this.claimedAwards.get(gameId);
+    if (!awardsMap) {
+      throw new Error("Failed to initialize awards map");
+    }
+
+    // Record the award
+    const result: RouletteResult = {
+      userId,
+      displayName: participant.displayName,
+      award,
+      claimedAt: new Date(),
+    };
+    awardsMap.set(award, result);
+
+    return result;
+  }
 }

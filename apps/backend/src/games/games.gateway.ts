@@ -136,6 +136,8 @@ export class GamesGateway
           status: state.game.status,
           startedAt: state.game.startedAt?.toISOString() ?? null,
           endedAt: state.game.endedAt?.toISOString() ?? null,
+          awardMin: state.game.awardMin,
+          awardMax: state.game.awardMax,
         },
         participantCount: state.participantCount,
         drawnNumbers: state.drawnNumbers.map((d) => ({
@@ -206,6 +208,8 @@ export class GamesGateway
           status: state.game.status,
           startedAt: state.game.startedAt?.toISOString() ?? null,
           endedAt: state.game.endedAt?.toISOString() ?? null,
+          awardMin: state.game.awardMin,
+          awardMax: state.game.awardMax,
         },
         participantCount: state.participantCount,
         drawnNumbers: state.drawnNumbers.map((d) => ({
@@ -255,5 +259,73 @@ export class GamesGateway
     const roomName = `game:${gameId}`;
     this.server.to(roomName).emit(event, data);
     this.logger.log(`Broadcast ${event} to game ${gameId}`);
+  }
+
+  /**
+   * Player requests to spin the roulette.
+   * This broadcasts to the room so the host can show the roulette modal.
+   */
+  @SubscribeMessage("roulette:request-spin")
+  async handleRouletteSpinRequest(
+    @MessageBody() data: { gameId: number },
+    @ConnectedSocket() client: Socket,
+  ) {
+    const userId = client.data.userId;
+    const displayName = client.data.displayName;
+
+    if (!userId || !displayName) {
+      throw new WsException("User not authenticated");
+    }
+
+    this.logger.log(
+      `User ${userId} (${displayName}) requested roulette spin for game ${data.gameId}`,
+    );
+
+    // Broadcast to the game room (host will receive this)
+    this.broadcastToGame(data.gameId, "roulette:spin-request", {
+      gameId: data.gameId,
+      userId,
+      displayName,
+    });
+
+    // Also tell the player that spinning has started
+    client.emit("roulette:spinning", {
+      gameId: data.gameId,
+      userId,
+      displayName,
+    });
+  }
+
+  /**
+   * Host sends the roulette result after animation completes.
+   * This records the result and broadcasts to all players.
+   */
+  @SubscribeMessage("roulette:result")
+  async handleRouletteResult(
+    @MessageBody() data: { gameId: number; userId: number; award: number },
+    @ConnectedSocket() client: Socket,
+  ) {
+    if (!client.data.isHost) {
+      throw new WsException("Only host can send roulette results");
+    }
+
+    this.logger.log(
+      `Host sent roulette result for user ${data.userId} in game ${data.gameId}: award ${data.award}`,
+    );
+
+    // Get the winner's display name from service
+    const result = await this.gamesService.recordRouletteResult(
+      data.gameId,
+      data.userId,
+      data.award,
+    );
+
+    // Broadcast the result to all clients in the room
+    this.broadcastToGame(data.gameId, "roulette:result", {
+      gameId: data.gameId,
+      userId: data.userId,
+      displayName: result.displayName,
+      award: data.award,
+    });
   }
 }

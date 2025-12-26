@@ -8,6 +8,9 @@ import type {
   NumberDrawnPayload,
   ReachNotifiedPayload,
   RouletteClaimedPayload,
+  RouletteResultPayload,
+  RouletteSpinningPayload,
+  RouletteSpinRequestPayload,
 } from "../types";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "http://localhost:3000";
@@ -131,6 +134,46 @@ class SocketService {
 
   offRouletteClaimed(): void {
     this.socket?.off("roulette:claimed");
+  }
+
+  // New roulette spin flow events
+  // Player requests to spin the roulette
+  requestRouletteSpin(gameId: number): void {
+    this.socket?.emit("roulette:request-spin", { gameId });
+  }
+
+  // Host sends result after roulette animation completes
+  sendRouletteResult(gameId: number, userId: number, award: number): void {
+    this.socket?.emit("roulette:result", { gameId, userId, award });
+  }
+
+  // Listen for spin request (host receives this)
+  onRouletteSpinRequest(
+    callback: (data: RouletteSpinRequestPayload) => void,
+  ): void {
+    this.socket?.on("roulette:spin-request", callback);
+  }
+
+  offRouletteSpinRequest(): void {
+    this.socket?.off("roulette:spin-request");
+  }
+
+  // Listen for spinning started (player receives this to show "spinning...")
+  onRouletteSpinning(callback: (data: RouletteSpinningPayload) => void): void {
+    this.socket?.on("roulette:spinning", callback);
+  }
+
+  offRouletteSpinning(): void {
+    this.socket?.off("roulette:spinning");
+  }
+
+  // Listen for result (player receives final award)
+  onRouletteResult(callback: (data: RouletteResultPayload) => void): void {
+    this.socket?.on("roulette:result", callback);
+  }
+
+  offRouletteResult(): void {
+    this.socket?.off("roulette:result");
   }
 
   // Cleanup

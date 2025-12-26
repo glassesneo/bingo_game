@@ -187,3 +187,23 @@ export interface RouletteClaimedPayload {
   result: RouletteResult;
   remainingAwards: number[];
 }
+
+// Roulette spin flow payloads
+export interface RouletteSpinRequestPayload {
+  gameId: number;
+  userId: number;
+  displayName: string;
+}
+
+export interface RouletteSpinningPayload {
+  gameId: number;
+  userId: number;
+  displayName: string;
+}
+
+export interface RouletteResultPayload {
+  gameId: number;
+  userId: number;
+  displayName: string;
+  award: number;
+}

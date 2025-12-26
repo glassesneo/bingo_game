@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { DrawnHistory } from "../components/game/DrawnHistory";
 import { GaraGaraDrawer } from "../components/game/GaraGaraDrawer";
 import { NumberBall } from "../components/game/NumberBall";
 import { QRCodeDisplay } from "../components/game/QRCodeDisplay";
+import { Roulette } from "../components/game/Roulette";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { api } from "../services/api";
 import { socketService } from "../services/socket";
@@ -14,6 +15,7 @@ import type {
   HostView,
   Reach,
   RouletteResult,
+  RouletteSpinRequestPayload,
   Winner,
 } from "../types";
 
@@ -45,6 +47,15 @@ export function HostPage() {
   const [newRouletteResult, setNewRouletteResult] =
     useState<RouletteResult | null>(null);
 
+  // Pending roulette spin request (winner waiting for their roulette)
+  const [pendingSpinRequest, setPendingSpinRequest] = useState<{
+    userId: number;
+    displayName: string;
+    requestId: number; // Unique ID to force Roulette remount
+  } | null>(null);
+  const [isRouletteSpinning, setIsRouletteSpinning] = useState(false);
+  const spinRequestIdRef = useRef(0); // Counter for unique request IDs
+
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +83,61 @@ export function HostPage() {
   // Generate join URL - use PUBLIC_URL for QR code (for LAN access)
   const publicUrl = import.meta.env.VITE_PUBLIC_URL || window.location.origin;
   const joinUrl = inviteToken ? `${publicUrl}/join/${inviteToken}` : null;
+
+  // Calculate remaining awards for roulette
+  const remainingAwards = (() => {
+    if (awardMin === null || awardMax === null) return [];
+    const allAwards: number[] = [];
+    for (let i = awardMin; i <= awardMax; i++) {
+      allAwards.push(i);
+    }
+    const claimedAwards = new Set(rouletteResults.map((r) => r.award));
+    return allAwards.filter((a) => !claimedAwards.has(a));
+  })();
+
+  // Check if draw button should be blocked (pending roulette)
+  const isDrawBlocked = pendingSpinRequest !== null;
+
+  // Handle roulette spin complete - send result to server and clear pending
+  const handleRouletteSpinComplete = useCallback(
+    (award: number) => {
+      if (!gameId || !pendingSpinRequest) return;
+
+      // Capture the current requestId to check later
+      const currentRequestId = pendingSpinRequest.requestId;
+
+      // Immediately stop autoSpin to prevent re-triggering when awards change
+      setIsRouletteSpinning(false);
+
+      // Send the result via WebSocket
+      socketService.sendRouletteResult(
+        gameId,
+        pendingSpinRequest.userId,
+        award,
+      );
+
+      // Record the result locally
+      const result: RouletteResult = {
+        userId: pendingSpinRequest.userId,
+        displayName: pendingSpinRequest.displayName,
+        award,
+        claimedAt: new Date().toISOString(),
+      };
+      setRouletteResults((prev) => [...prev, result]);
+
+      // Clear the pending request after a short delay to show the result
+      // Only clear if the request hasn't changed (no new spin request came in)
+      setTimeout(() => {
+        setPendingSpinRequest((current) => {
+          if (current?.requestId === currentRequestId) {
+            return null;
+          }
+          return current;
+        });
+      }, 3000);
+    },
+    [gameId, pendingSpinRequest],
+  );
 
   const commitDraw = useCallback((draw: DrawnNumber) => {
     setDrawnNumbers((prev) => [...prev, draw]);
@@ -322,6 +388,24 @@ export function HostPage() {
             setTimeout(() => setNewRouletteResult(null), 3000);
           }
         });
+
+        // Listen for roulette spin requests from players
+        socketService.onRouletteSpinRequest(
+          (data: RouletteSpinRequestPayload) => {
+            console.log("Received roulette spin request:", data);
+            if (mounted) {
+              // Increment request ID to force Roulette component remount
+              spinRequestIdRef.current += 1;
+              // Set the pending spin request to show the roulette modal
+              setPendingSpinRequest({
+                userId: data.userId,
+                displayName: data.displayName,
+                requestId: spinRequestIdRef.current,
+              });
+              setIsRouletteSpinning(true);
+            }
+          },
+        );
       } catch (err) {
         if (mounted) {
           setError(
@@ -349,6 +433,7 @@ export function HostPage() {
       socketService.offGameEnded();
       socketService.offPlayerJoined();
       socketService.offRouletteClaimed();
+      socketService.offRouletteSpinRequest();
       // Leave the game room when unmounting
       if (joinedGameId) {
         socketService.leaveGame(joinedGameId);
@@ -426,6 +511,43 @@ export function HostPage() {
               🎉 BINGO! 🎉
             </div>
             <div className="text-3xl text-center">{newWinner.displayName}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Roulette Modal Overlay - shown when player requests spin */}
+      {pendingSpinRequest && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-base-100 p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold text-center mb-4">
+              🎰 景品ルーレット 🎰
+            </h2>
+            <p className="text-center text-lg mb-6">
+              {pendingSpinRequest.displayName}さんのルーレット
+            </p>
+            {remainingAwards.length > 0 ? (
+              <Roulette
+                key={pendingSpinRequest.requestId}
+                awards={remainingAwards}
+                onSpinComplete={handleRouletteSpinComplete}
+                autoSpin={isRouletteSpinning}
+                showButton={false}
+              />
+            ) : (
+              <div className="text-center space-y-4">
+                <p className="text-warning">景品が設定されていません</p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setPendingSpinRequest(null);
+                    setIsRouletteSpinning(false);
+                  }}
+                >
+                  閉じる
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -528,6 +650,10 @@ export function HostPage() {
                       placeholder="最小"
                       value={awardMinInput}
                       onChange={(e) => setAwardMinInput(e.target.value)}
+                      onBlur={handleUpdateAwardRange}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleUpdateAwardRange()
+                      }
                       className="input input-bordered input-sm w-20"
                       min={1}
                       max={100}
@@ -538,22 +664,17 @@ export function HostPage() {
                       placeholder="最大"
                       value={awardMaxInput}
                       onChange={(e) => setAwardMaxInput(e.target.value)}
+                      onBlur={handleUpdateAwardRange}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleUpdateAwardRange()
+                      }
                       className="input input-bordered input-sm w-20"
                       min={1}
                       max={100}
                     />
-                    <button
-                      type="button"
-                      onClick={handleUpdateAwardRange}
-                      disabled={isUpdatingAwards}
-                      className="btn btn-sm btn-primary"
-                    >
-                      {isUpdatingAwards ? (
-                        <span className="loading loading-spinner loading-xs" />
-                      ) : (
-                        "設定"
-                      )}
-                    </button>
+                    {isUpdatingAwards && (
+                      <span className="loading loading-spinner loading-xs" />
+                    )}
                   </div>
                   {awardMin !== null && awardMax !== null && (
                     <p className="text-sm text-success mt-2">
@@ -582,9 +703,35 @@ export function HostPage() {
                 </label>
               </div>
 
+              {/* Validation message for awards */}
+              {(awardMin === null || awardMax === null) && (
+                <div className="alert alert-warning">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="stroke-current shrink-0 h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <title>警告</title>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                    />
+                  </svg>
+                  <span>景品ルーレットを設定してください</span>
+                </div>
+              )}
+
               <button
                 onClick={handleStartGame}
-                disabled={isStarting || (!debugMode && participantCount === 0)}
+                disabled={
+                  isStarting ||
+                  (!debugMode && participantCount === 0) ||
+                  awardMin === null ||
+                  awardMax === null
+                }
                 className="btn btn-primary btn-lg w-full"
                 type="button"
               >
@@ -663,12 +810,17 @@ export function HostPage() {
                   : handleGaragaraSpinStart
               }
               disabled={
-                isDrawing || isGaragaraSpinning || remainingNumbers === 0
+                isDrawing ||
+                isGaragaraSpinning ||
+                remainingNumbers === 0 ||
+                isDrawBlocked
               }
-              className="btn btn-primary btn-lg w-full"
+              className={`btn btn-primary btn-lg w-full ${isDrawBlocked ? "btn-disabled" : ""}`}
               type="button"
             >
-              {isDrawing || isGaragaraSpinning ? (
+              {isDrawBlocked ? (
+                "ルーレット待ち..."
+              ) : isDrawing || isGaragaraSpinning ? (
                 <>
                   <span className="loading loading-spinner" />
                   抽選中...
