@@ -4,6 +4,8 @@ export class GameResponseDto {
   status!: string;
   startedAt!: string | null;
   endedAt!: string | null;
+  awardMin!: number | null;
+  awardMax!: number | null;
 }
 
 export class CreateGameResponseDto extends GameResponseDto {
@@ -30,6 +32,8 @@ export class GameStateResponseDto {
     status: string;
     startedAt: string | null;
     endedAt: string | null;
+    awardMin: number | null;
+    awardMax: number | null;
   };
   participantCount!: number;
   drawnNumbers!: DrawnNumberDto[];
@@ -72,4 +76,23 @@ export class ReachDto {
 export class NotifyReachResponseDto {
   success!: boolean;
   reach!: ReachDto;
+}
+
+export class UpdateAwardRangeResponseDto {
+  gameId!: number;
+  awardMin!: number | null;
+  awardMax!: number | null;
+}
+
+export class RouletteResultDto {
+  userId!: number;
+  displayName!: string;
+  award!: number;
+  claimedAt!: string;
+}
+
+export class ClaimRouletteResponseDto {
+  success!: boolean;
+  result!: RouletteResultDto;
+  remainingAwards!: number[];
 }

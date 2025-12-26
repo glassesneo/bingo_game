@@ -47,6 +47,8 @@ export interface GameState {
     status: string;
     startedAt: Date | null;
     endedAt: Date | null;
+    awardMin: number | null;
+    awardMax: number | null;
   };
   participantCount: number;
   drawnNumbers: DrawnNumber[];
@@ -58,8 +60,19 @@ export interface HostView extends GameState {
   inviteToken: string;
 }
 
+export interface RouletteResult {
+  userId: number;
+  displayName: string;
+  award: number;
+  claimedAt: Date;
+}
+
 @Injectable()
 export class GamesService {
+  // In-memory storage for claimed roulette awards per game
+  // Key: gameId, Value: Map of award -> RouletteResult
+  private claimedAwards = new Map<number, Map<number, RouletteResult>>();
+
   constructor(
     @InjectRepository(Game)
     private readonly gameRepo: Repository<Game>,
@@ -171,6 +184,8 @@ export class GamesService {
         status: game.status,
         startedAt: game.startedAt,
         endedAt: game.endedAt,
+        awardMin: game.awardMin,
+        awardMax: game.awardMax,
       },
       participantCount,
       drawnNumbers: draws.map((d) => ({
@@ -683,5 +698,162 @@ export class GamesService {
     });
 
     return await this.inviteRepo.save(invite);
+  }
+
+  /**
+   * Update award range for a game (host only)
+   */
+  async updateAwardRange(
+    gameId: number,
+    awardMin: number | null,
+    awardMax: number | null,
+  ): Promise<Game> {
+    const game = await this.gameRepo.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game with id ${gameId} not found`);
+    }
+
+    if (game.status !== "waiting") {
+      throw new BadRequestException(
+        "Award range can only be updated in waiting status",
+      );
+    }
+
+    // Validate that min <= max if both are provided
+    if (awardMin !== null && awardMax !== null && awardMin > awardMax) {
+      throw new BadRequestException(
+        "awardMin must be less than or equal to awardMax",
+      );
+    }
+
+    game.awardMin = awardMin;
+    game.awardMax = awardMax;
+    return await this.gameRepo.save(game);
+  }
+
+  /**
+   * Get remaining awards for a game (async)
+   */
+  async getRemainingAwardsAsync(gameId: number): Promise<number[]> {
+    const game = await this.gameRepo.findOne({ where: { id: gameId } });
+    if (!game || game.awardMin === null || game.awardMax === null) {
+      return [];
+    }
+
+    const allAwards: number[] = [];
+    for (let i = game.awardMin; i <= game.awardMax; i++) {
+      allAwards.push(i);
+    }
+
+    const claimedMap = this.claimedAwards.get(gameId);
+    if (!claimedMap) {
+      return allAwards;
+    }
+
+    return allAwards.filter((award) => !claimedMap.has(award));
+  }
+
+  /**
+   * Get all roulette results for a game
+   */
+  getRouletteResults(gameId: number): RouletteResult[] {
+    const claimedMap = this.claimedAwards.get(gameId);
+    if (!claimedMap) {
+      return [];
+    }
+    return Array.from(claimedMap.values());
+  }
+
+  /**
+   * Claim roulette award (winner only)
+   */
+  async claimRoulette(
+    gameId: number,
+    userId: number,
+    award: number,
+  ): Promise<{ result: RouletteResult; remainingAwards: number[] }> {
+    const game = await this.gameRepo.findOne({ where: { id: gameId } });
+    if (!game) {
+      throw new NotFoundException(`Game with id ${gameId} not found`);
+    }
+
+    if (game.status !== "running" && game.status !== "ended") {
+      throw new BadRequestException(
+        `Cannot claim roulette in game status '${game.status}'`,
+      );
+    }
+
+    // Verify the user is a winner
+    const participant = await this.participantRepo.findOne({
+      where: { gameId, userId, wonAt: Not(IsNull()) },
+    });
+    if (!participant) {
+      throw new BadRequestException("Only winners can spin the roulette");
+    }
+
+    // Check if user already claimed an award
+    const claimedMap = this.claimedAwards.get(gameId);
+    if (claimedMap) {
+      for (const result of claimedMap.values()) {
+        if (result.userId === userId) {
+          throw new ConflictException("You have already claimed an award");
+        }
+      }
+    }
+
+    // Validate award is in range
+    if (
+      game.awardMin === null ||
+      game.awardMax === null ||
+      award < game.awardMin ||
+      award > game.awardMax
+    ) {
+      throw new BadRequestException("Invalid award number");
+    }
+
+    // Initialize claimed map if needed
+    if (!this.claimedAwards.has(gameId)) {
+      this.claimedAwards.set(gameId, new Map());
+    }
+    const awardsMap = this.claimedAwards.get(gameId);
+    if (!awardsMap) {
+      // This should never happen since we just set it above
+      throw new Error("Failed to initialize awards map");
+    }
+
+    // Check if award is already claimed
+    if (awardsMap.has(award)) {
+      throw new ConflictException(`Award ${award} has already been claimed`);
+    }
+
+    // Claim the award
+    const result: RouletteResult = {
+      userId,
+      displayName: participant.displayName,
+      award,
+      claimedAt: new Date(),
+    };
+    awardsMap.set(award, result);
+
+    // Calculate remaining awards
+    const allAwards: number[] = [];
+    for (let i = game.awardMin; i <= game.awardMax; i++) {
+      allAwards.push(i);
+    }
+    const remainingAwards = allAwards.filter((a) => !awardsMap.has(a));
+
+    // Broadcast roulette claim to all clients
+    this.gateway.broadcastToGame(gameId, "roulette:claimed", {
+      gameId,
+      result: {
+        userId: result.userId,
+        displayName: result.displayName,
+        award: result.award,
+        claimedAt: result.claimedAt.toISOString(),
+      },
+      remainingAwards,
+    });
+
+    return { result, remainingAwards };
   }
 }

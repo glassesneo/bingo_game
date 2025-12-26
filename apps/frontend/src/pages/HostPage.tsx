@@ -13,6 +13,7 @@ import type {
   GameStatus,
   HostView,
   Reach,
+  RouletteResult,
   Winner,
 } from "../types";
 
@@ -31,6 +32,18 @@ export function HostPage() {
   const [reaches, setReaches] = useState<Reach[]>([]);
   const [participantCount, setParticipantCount] = useState(0);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
+
+  // Award range state
+  const [awardMin, setAwardMin] = useState<number | null>(null);
+  const [awardMax, setAwardMax] = useState<number | null>(null);
+  const [awardMinInput, setAwardMinInput] = useState("");
+  const [awardMaxInput, setAwardMaxInput] = useState("");
+  const [isUpdatingAwards, setIsUpdatingAwards] = useState(false);
+
+  // Roulette results state
+  const [rouletteResults, setRouletteResults] = useState<RouletteResult[]>([]);
+  const [newRouletteResult, setNewRouletteResult] =
+    useState<RouletteResult | null>(null);
 
   // UI state
   const [isLoading, setIsLoading] = useState(true);
@@ -122,6 +135,35 @@ export function HostPage() {
     }
   }, [gameId, hostToken, isEnding]);
 
+  // Update award range
+  const handleUpdateAwardRange = useCallback(async () => {
+    if (!gameId || !hostToken || isUpdatingAwards) return;
+
+    const min = awardMinInput ? Number.parseInt(awardMinInput, 10) : null;
+    const max = awardMaxInput ? Number.parseInt(awardMaxInput, 10) : null;
+
+    // Validate
+    if (min !== null && max !== null && min > max) {
+      setError("最小値は最大値以下にしてください");
+      return;
+    }
+
+    setIsUpdatingAwards(true);
+    setError(null);
+
+    try {
+      const response = await api.updateAwardRange(gameId, hostToken, min, max);
+      setAwardMin(response.awardMin);
+      setAwardMax(response.awardMax);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "景品設定を更新できませんでした",
+      );
+    } finally {
+      setIsUpdatingAwards(false);
+    }
+  }, [gameId, hostToken, isUpdatingAwards, awardMinInput, awardMaxInput]);
+
   // GaraGara spin start handler
   const handleGaragaraSpinStart = useCallback(() => {
     setGaragaraDrawnNumber(null); // Reset previous drawn number
@@ -204,6 +246,15 @@ export function HostPage() {
           setDrawnNumbers(hostView.drawnNumbers);
           setWinners(hostView.winners);
           setParticipantCount(hostView.participantCount);
+          // Initialize award range from server
+          setAwardMin(hostView.game.awardMin);
+          setAwardMax(hostView.game.awardMax);
+          if (hostView.game.awardMin !== null) {
+            setAwardMinInput(String(hostView.game.awardMin));
+          }
+          if (hostView.game.awardMax !== null) {
+            setAwardMaxInput(String(hostView.game.awardMax));
+          }
           setIsLoading(false);
         }
 
@@ -262,6 +313,15 @@ export function HostPage() {
             setParticipantCount(data.participantCount);
           }
         });
+
+        socketService.onRouletteClaimed((data) => {
+          if (mounted) {
+            setRouletteResults((prev) => [...prev, data.result]);
+            setNewRouletteResult(data.result);
+            // Clear notification after 3 seconds
+            setTimeout(() => setNewRouletteResult(null), 3000);
+          }
+        });
       } catch (err) {
         if (mounted) {
           setError(
@@ -288,6 +348,7 @@ export function HostPage() {
       socketService.offReachNotified();
       socketService.offGameEnded();
       socketService.offPlayerJoined();
+      socketService.offRouletteClaimed();
       // Leave the game room when unmounting
       if (joinedGameId) {
         socketService.leaveGame(joinedGameId);
@@ -369,6 +430,18 @@ export function HostPage() {
         </div>
       )}
 
+      {/* Roulette Result Toast */}
+      {newRouletteResult && (
+        <div className="toast toast-top toast-end z-50">
+          <div className="alert alert-info">
+            <span>
+              {newRouletteResult.displayName} が景品 #{newRouletteResult.award}{" "}
+              を獲得!
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6 max-w-screen-2xl mx-auto">
         <div className="flex-1" />
@@ -444,6 +517,55 @@ export function HostPage() {
               </div>
 
               <DrawerModeSelector />
+
+              {/* Award Range Configuration */}
+              <div className="card bg-base-200">
+                <div className="card-body">
+                  <h3 className="card-title text-sm">景品ルーレット設定</h3>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="number"
+                      placeholder="最小"
+                      value={awardMinInput}
+                      onChange={(e) => setAwardMinInput(e.target.value)}
+                      className="input input-bordered input-sm w-20"
+                      min={1}
+                      max={100}
+                    />
+                    <span>〜</span>
+                    <input
+                      type="number"
+                      placeholder="最大"
+                      value={awardMaxInput}
+                      onChange={(e) => setAwardMaxInput(e.target.value)}
+                      className="input input-bordered input-sm w-20"
+                      min={1}
+                      max={100}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUpdateAwardRange}
+                      disabled={isUpdatingAwards}
+                      className="btn btn-sm btn-primary"
+                    >
+                      {isUpdatingAwards ? (
+                        <span className="loading loading-spinner loading-xs" />
+                      ) : (
+                        "設定"
+                      )}
+                    </button>
+                  </div>
+                  {awardMin !== null && awardMax !== null && (
+                    <p className="text-sm text-success mt-2">
+                      景品番号: {awardMin} 〜 {awardMax} (
+                      {awardMax - awardMin + 1}種類)
+                    </p>
+                  )}
+                  <p className="text-xs text-base-content/50 mt-1">
+                    勝者がルーレットで景品番号を決定します
+                  </p>
+                </div>
+              </div>
 
               {/* Debug Mode Toggle */}
               <div className="form-control">
@@ -665,17 +787,27 @@ export function HostPage() {
                   <div className="mt-4">
                     {winners.length > 0 ? (
                       <ul className="space-y-2 max-h-40 overflow-y-auto">
-                        {winners.map((winner, index) => (
-                          <li
-                            key={`${winner.userId}-${winner.claimedAt}`}
-                            className="text-base font-semibold flex items-center gap-2"
-                          >
-                            <span className="badge badge-ghost badge-sm">
-                              {index + 1}
-                            </span>
-                            {winner.displayName}
-                          </li>
-                        ))}
+                        {winners.map((winner, index) => {
+                          const rouletteResult = rouletteResults.find(
+                            (r) => r.userId === winner.userId,
+                          );
+                          return (
+                            <li
+                              key={`${winner.userId}-${winner.claimedAt}`}
+                              className="text-base font-semibold flex items-center gap-2"
+                            >
+                              <span className="badge badge-ghost badge-sm">
+                                {index + 1}
+                              </span>
+                              {winner.displayName}
+                              {rouletteResult && (
+                                <span className="badge badge-primary badge-sm">
+                                  景品#{rouletteResult.award}
+                                </span>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     ) : (
                       <p className="text-center text-base-content/50 py-4">

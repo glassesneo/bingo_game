@@ -1,8 +1,10 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -11,8 +13,10 @@ import { Request } from "express";
 import { HostTokenGuard } from "../auth/host-token.guard";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { AuthenticatedUser } from "../auth/jwt-payload.interface";
+import { ClaimRouletteDto } from "./dto/claim-roulette.dto";
 import {
   ClaimBingoResponseDto,
+  ClaimRouletteResponseDto,
   CreateGameResponseDto,
   DrawNumberResponseDto,
   EndGameResponseDto,
@@ -20,7 +24,9 @@ import {
   HostViewResponseDto,
   NotifyReachResponseDto,
   StartGameResponseDto,
+  UpdateAwardRangeResponseDto,
 } from "./dto/game-response.dto";
+import { UpdateAwardRangeDto } from "./dto/update-award-range.dto";
 import { GamesService } from "./games.service";
 
 @Controller()
@@ -42,6 +48,8 @@ export class GamesController {
       status: game.status,
       startedAt: game.startedAt?.toISOString() ?? null,
       endedAt: game.endedAt?.toISOString() ?? null,
+      awardMin: game.awardMin,
+      awardMax: game.awardMax,
       hostToken: game.hostToken,
       inviteToken: invite.token,
     };
@@ -63,6 +71,8 @@ export class GamesController {
         status: state.game.status,
         startedAt: state.game.startedAt?.toISOString() ?? null,
         endedAt: state.game.endedAt?.toISOString() ?? null,
+        awardMin: state.game.awardMin,
+        awardMax: state.game.awardMax,
       },
       participantCount: state.participantCount,
       drawnNumbers: state.drawnNumbers.map((d) => ({
@@ -96,6 +106,8 @@ export class GamesController {
         status: view.game.status,
         startedAt: view.game.startedAt?.toISOString() ?? null,
         endedAt: view.game.endedAt?.toISOString() ?? null,
+        awardMin: view.game.awardMin,
+        awardMax: view.game.awardMax,
       },
       participantCount: view.participantCount,
       drawnNumbers: view.drawnNumbers.map((d) => ({
@@ -108,6 +120,28 @@ export class GamesController {
         displayName: w.displayName,
         claimedAt: w.claimedAt.toISOString(),
       })),
+    };
+  }
+
+  /**
+   * PATCH /games/:gameId/awards
+   * Update award range (host only, waiting status only)
+   */
+  @Patch("games/:gameId/awards")
+  @UseGuards(HostTokenGuard)
+  async updateAwardRange(
+    @Param("gameId", ParseIntPipe) gameId: number,
+    @Body() dto: UpdateAwardRangeDto,
+  ): Promise<UpdateAwardRangeResponseDto> {
+    const game = await this.gamesService.updateAwardRange(
+      gameId,
+      dto.awardMin ?? null,
+      dto.awardMax ?? null,
+    );
+    return {
+      gameId: game.id,
+      awardMin: game.awardMin,
+      awardMax: game.awardMax,
     };
   }
 
@@ -189,6 +223,35 @@ export class GamesController {
         displayName: reach.displayName,
         reachedAt: reach.reachedAt.toISOString(),
       },
+    };
+  }
+
+  /**
+   * POST /games/:gameId/roulette
+   * Claim roulette award (winner only, JWT protected)
+   */
+  @Post("games/:gameId/roulette")
+  @UseGuards(JwtAuthGuard)
+  async claimRoulette(
+    @Param("gameId", ParseIntPipe) gameId: number,
+    @Body() dto: ClaimRouletteDto,
+    @Req() req: Request & { user: AuthenticatedUser },
+  ): Promise<ClaimRouletteResponseDto> {
+    const { userId } = req.user;
+    const { result, remainingAwards } = await this.gamesService.claimRoulette(
+      gameId,
+      userId,
+      dto.award,
+    );
+    return {
+      success: true,
+      result: {
+        userId: result.userId,
+        displayName: result.displayName,
+        award: result.award,
+        claimedAt: result.claimedAt.toISOString(),
+      },
+      remainingAwards,
     };
   }
 

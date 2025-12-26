@@ -45,6 +45,12 @@ export class Game {
   @Column({ name: "ended_at", type: "datetime", nullable: true })
   endedAt!: Date | null;
 
+  @Column({ name: "award_min", type: "integer", nullable: true })
+  awardMin!: number | null;
+
+  @Column({ name: "award_max", type: "integer", nullable: true })
+  awardMax!: number | null;
+
   @OneToMany(
     () => GameParticipant,
     (gp) => gp.game,

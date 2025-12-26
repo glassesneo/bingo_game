@@ -2,6 +2,7 @@ import type {
   Card,
   ClaimBingoResponse,
   ClaimInviteResponse,
+  ClaimRouletteResponse,
   CreateGameResponse,
   DrawNumberResponse,
   EndGameResponse,
@@ -11,6 +12,7 @@ import type {
   NotifyReachResponse,
   ServerResponse,
   StartGameResponse,
+  UpdateAwardRangeResponse,
 } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:3000";
@@ -103,5 +105,23 @@ export const api = {
   notifyReach: (gameId: number) =>
     request<NotifyReachResponse>("POST", `/games/${gameId}/reach`, {
       useAuth: true,
+    }),
+
+  // Roulette
+  updateAwardRange: (
+    gameId: number,
+    hostToken: string,
+    awardMin: number | null,
+    awardMax: number | null,
+  ) =>
+    request<UpdateAwardRangeResponse>("PATCH", `/games/${gameId}/awards`, {
+      hostToken,
+      body: { awardMin, awardMax },
+    }),
+
+  claimRoulette: (gameId: number, award: number) =>
+    request<ClaimRouletteResponse>("POST", `/games/${gameId}/roulette`, {
+      useAuth: true,
+      body: { award },
     }),
 };

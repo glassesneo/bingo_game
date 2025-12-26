@@ -8,6 +8,8 @@ export interface GameSummary {
   status: GameStatus;
   startedAt: string | null;
   endedAt: string | null;
+  awardMin: number | null;
+  awardMax: number | null;
 }
 
 // Drawn number with metadata
@@ -46,6 +48,14 @@ export interface Reach {
   userId: number;
   displayName: string;
   reachedAt: string;
+}
+
+// Roulette result information
+export interface RouletteResult {
+  userId: number;
+  displayName: string;
+  award: number;
+  claimedAt: string;
 }
 
 // Full game state
@@ -129,6 +139,18 @@ export interface EndGameResponse {
   endedAt: string;
 }
 
+export interface UpdateAwardRangeResponse {
+  gameId: number;
+  awardMin: number | null;
+  awardMax: number | null;
+}
+
+export interface ClaimRouletteResponse {
+  success: boolean;
+  result: RouletteResult;
+  remainingAwards: number[];
+}
+
 // WebSocket Event Payloads
 export interface GameJoinedPayload {
   gameId: number;
@@ -158,4 +180,10 @@ export interface ReachNotifiedPayload {
 export interface GameEndedPayload {
   gameId: number;
   endedAt: string;
+}
+
+export interface RouletteClaimedPayload {
+  gameId: number;
+  result: RouletteResult;
+  remainingAwards: number[];
 }

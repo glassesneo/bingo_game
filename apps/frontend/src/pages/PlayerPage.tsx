@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BingoCard } from "../components/game/BingoCard";
 import { DrawnHistory } from "../components/game/DrawnHistory";
 import { NumberBall } from "../components/game/NumberBall";
+import { Roulette } from "../components/game/Roulette";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { api } from "../services/api";
 import { socketService } from "../services/socket";
@@ -17,6 +18,13 @@ import type {
 } from "../types";
 import { checkReach, checkWin } from "../utils/bingo";
 
+// Roulette state stored in localStorage
+interface RouletteState {
+  gameId: number;
+  status: "pending" | "spinning" | "claimed";
+  award?: number;
+}
+
 export function PlayerPage() {
   const { gameId: gameIdParam } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
@@ -27,6 +35,10 @@ export function PlayerPage() {
     null,
   );
 
+  // Roulette state persisted in localStorage
+  const [rouletteState, setRouletteState] =
+    useLocalStorage<RouletteState | null>(`bingo_roulette_${gameId}`, null);
+
   // Game state
   const [card, setCard] = useState<Card | null>(null);
   const [gameStatus, setGameStatus] = useState<GameStatus>("waiting");
@@ -35,6 +47,11 @@ export function PlayerPage() {
   const [reaches, setReaches] = useState<Reach[]>([]);
   const [lastDrawnNumber, setLastDrawnNumber] = useState<number | null>(null);
 
+  // Award range from game state
+  const [awardMin, setAwardMin] = useState<number | null>(null);
+  const [awardMax, setAwardMax] = useState<number | null>(null);
+  const [remainingAwards, setRemainingAwards] = useState<number[]>([]);
+
   // UI state
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +59,7 @@ export function PlayerPage() {
   const [hasClaimedWin, setHasClaimedWin] = useState(false);
   const [isNotifyingReach, setIsNotifyingReach] = useState(false);
   const [hasNotifiedReach, setHasNotifiedReach] = useState(false);
+  const [isClaimingRoulette, setIsClaimingRoulette] = useState(false);
 
   // Check if player has won
   const winResult = useMemo(() => {
@@ -112,6 +130,38 @@ export function PlayerPage() {
     }
   }, [gameId, isNotifyingReach, hasNotifiedReach]);
 
+  // Handle roulette spin complete
+  const handleRouletteSpinComplete = useCallback(
+    async (award: number) => {
+      if (!gameId || isClaimingRoulette) return;
+
+      // Mark as spinning in localStorage
+      setRouletteState({ gameId, status: "spinning", award });
+      setIsClaimingRoulette(true);
+
+      try {
+        const response = await api.claimRoulette(gameId, award);
+        // Mark as claimed in localStorage
+        setRouletteState({
+          gameId,
+          status: "claimed",
+          award: response.result.award,
+        });
+        // Update remaining awards from response
+        setRemainingAwards(response.remainingAwards);
+      } catch (err) {
+        // If claim fails, reset to pending so user can try again
+        setRouletteState({ gameId, status: "pending" });
+        setError(
+          err instanceof Error ? err.message : "景品の取得に失敗しました",
+        );
+      } finally {
+        setIsClaimingRoulette(false);
+      }
+    },
+    [gameId, isClaimingRoulette, setRouletteState],
+  );
+
   // Validate session and redirect if needed
   useEffect(() => {
     if (!session) {
@@ -143,6 +193,26 @@ export function PlayerPage() {
         // Fetch game state to check if game is already ended
         const gameState = await api.getGame(gameId);
         if (mounted) {
+          // Initialize award range from game state
+          setAwardMin(gameState.game.awardMin);
+          setAwardMax(gameState.game.awardMax);
+
+          // Initialize remaining awards if awards are configured
+          if (
+            gameState.game.awardMin != null &&
+            gameState.game.awardMax != null
+          ) {
+            const allAwards: number[] = [];
+            for (
+              let i = gameState.game.awardMin;
+              i <= gameState.game.awardMax;
+              i++
+            ) {
+              allAwards.push(i);
+            }
+            setRemainingAwards(allAwards);
+          }
+
           if (gameState.game.status === "ended") {
             // Game already ended, show ended state
             setGameStatus("ended");
@@ -162,6 +232,9 @@ export function PlayerPage() {
             setGameStatus(data.game.status);
             setDrawnNumbers(data.drawnNumbers);
             setWinners(data.winners);
+            // Update award range from game state
+            setAwardMin(data.game.awardMin);
+            setAwardMax(data.game.awardMax);
             setIsLoading(false);
           }
         });
@@ -199,6 +272,13 @@ export function PlayerPage() {
           }
         });
 
+        // Listen for roulette:claimed events to update remaining awards
+        socketService.onRouletteClaimed((data) => {
+          if (mounted) {
+            setRemainingAwards(data.remainingAwards);
+          }
+        });
+
         // Join the game room
         socketService.joinGame(gameId, session.token);
       } catch (err) {
@@ -221,6 +301,7 @@ export function PlayerPage() {
       socketService.offBingoClaimed();
       socketService.offReachNotified();
       socketService.offGameEnded();
+      socketService.offRouletteClaimed();
       if (gameId) {
         socketService.leaveGame(gameId);
       }
@@ -316,6 +397,47 @@ export function PlayerPage() {
             <span className="text-lg font-bold">勝ちました！</span>
           </div>
         )}
+
+        {/* Roulette for winners */}
+        {isWinner &&
+          awardMin != null &&
+          awardMax != null &&
+          rouletteState?.status !== "claimed" && (
+            <div className="card bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary">
+              <div className="card-body p-4">
+                <h3 className="font-bold text-center text-lg mb-2">
+                  景品ルーレット
+                </h3>
+                {remainingAwards.length > 0 ? (
+                  <Roulette
+                    awards={remainingAwards}
+                    onSpinComplete={handleRouletteSpinComplete}
+                    disabled={
+                      isClaimingRoulette || rouletteState?.status === "spinning"
+                    }
+                  />
+                ) : (
+                  <p className="text-center text-base-content/60">
+                    全ての景品が取得されました
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+        {/* Roulette result display */}
+        {isWinner &&
+          rouletteState?.status === "claimed" &&
+          rouletteState.award != null && (
+            <div className="card bg-success/20 border-2 border-success">
+              <div className="card-body p-4 text-center">
+                <h3 className="font-bold text-lg">獲得した景品</h3>
+                <p className="text-3xl font-bold text-success">
+                  景品 #{rouletteState.award}
+                </p>
+              </div>
+            </div>
+          )}
 
         {/* Bingo Card */}
         {card && (

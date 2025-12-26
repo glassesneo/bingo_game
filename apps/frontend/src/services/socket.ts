@@ -7,6 +7,7 @@ import type {
   GameState,
   NumberDrawnPayload,
   ReachNotifiedPayload,
+  RouletteClaimedPayload,
 } from "../types";
 
 const WS_URL = import.meta.env.VITE_WS_URL || "http://localhost:3000";
@@ -121,6 +122,15 @@ class SocketService {
 
   offPlayerJoined(): void {
     this.socket?.off("player:joined");
+  }
+
+  // Roulette events
+  onRouletteClaimed(callback: (data: RouletteClaimedPayload) => void): void {
+    this.socket?.on("roulette:claimed", callback);
+  }
+
+  offRouletteClaimed(): void {
+    this.socket?.off("roulette:claimed");
   }
 
   // Cleanup
